@@ -33,6 +33,7 @@ Bài toán cụ thể: cho 1 ảnh chữ số viết tay (0–9), model phải �
 | **Accuracy** | Tỷ lệ dự đoán đúng — thước đo phổ biến cho phân loại. |
 | **GPU / CUDA** | Tăng tốc tính toán song song. |
 | **Inference** | Dùng model đã train để dự đoán trên dữ liệu mới. |
+| **Confusion matrix** | Bảng đối chiếu nhãn thật vs nhãn model đoán cho từng lớp, giúp thấy model hay nhầm số nào với số nào. |
 
 ## 3. Ứng dụng thực tế
 
@@ -47,25 +48,25 @@ Bài toán cụ thể: cho 1 ảnh chữ số viết tay (0–9), model phải �
 
 **Nguyên tắc:** chỉ phase hiện tại + phase kế tiếp là có nội dung cụ thể. Phần sau là backlog định hướng, sẽ viết lại sau mỗi buổi gặp Thầy (thứ 4 hàng tuần) dựa trên feedback thật.
 
-### Phase 0 — Baseline (đã xong tuần 1)
+### Phase 0 — Baseline (hoàn thành)
 - Setup Git/GitHub, commit đều hàng tuần theo đúng yêu cầu Thầy.
-- Build & chạy được CNN nhận diện MNIST (`mnist_digit_recognition.py`), ghi nhận accuracy thật.
+- Build & chạy được CNN nhận diện MNIST (`mnist_digit_recognition.py`), ghi nhận accuracy thật: **99.13%** (epoch 8/8).
 - Hiểu chắc, tự giải thích lại được các khái niệm nền ở mục 2.
-- **Kết quả đạt được:** model chạy được, accuracy 99.13%, repo GitHub + report tuần đầu tiên.
+- **Kết quả:** model chạy được, accuracy ghi nhận, repo GitHub + report tuần đầu tiên.
 
-### Phase 1 — Đánh giá đúng cách (kế tiếp, sẽ cụ thể hoá sau khi gặp Thầy)
-- Cải thiện model: thử data augmentation, điều chỉnh hyperparameter (learning rate, batch size).
-- Đánh giá đúng cách: confusion matrix, precision/recall, phân tích số hay bị đoán nhầm.
-- **Kết quả dự kiến:** bảng so sánh phiên bản model, report phân tích lỗi (không chỉ nhìn accuracy tổng).
+### Phase 1 — Đánh giá đúng cách (hoàn thành sớm, làm trước lịch dự kiến)
+- Đánh giá đúng cách: confusion matrix 10×10, accuracy theo từng chữ số, top 5 cặp số hay bị nhầm nhất (`error_analysis.py`).
+- **Kết quả thật:** accuracy tổng 99.21%, cặp hay nhầm nhất là 2→7 (8 lần), 4→9 (6 lần), 9→7 (4 lần); số yếu nhất là 9 (98.61%) và 2 (98.74%). Xuất `error_analysis.png` (lưới ảnh sai) và `confusion_matrix.png` (heatmap).
+- **Còn lại (dời qua sau, chưa làm):** data augmentation, tinh chỉnh hyperparameter (learning rate, batch size), so sánh phiên bản model trước/sau cải thiện.
 
 ### Phase 2 — So sánh & mở rộng (backlog, chưa cam kết)
 - So sánh kiến trúc: CNN hiện tại vs MLP thuần vs CNN sâu hơn; thử optimizer/activation khác.
 - Mở rộng dữ liệu: EMNIST, hoặc tự viết/chụp chữ số của chính mình để test.
 - Transfer learning / thử framework thứ 2 (PyTorch ↔ Keras) để so sánh trải nghiệm.
 
-### Phase 3 — Đóng gói & tối ưu (backlog, chưa cam kết)
-- Đóng gói demo dùng được: web app đơn giản (Flask/Streamlit/Gradio) vẽ tay + nhận diện trực tiếp.
-- Tối ưu model: quantization/pruning cơ bản, đo đánh đổi kích thước vs độ chính xác — nền cho project ES sau này.
+### Phase 3 — Đóng gói & tối ưu (demo hoàn thành sớm, phần tối ưu vẫn backlog)
+- **Đã xong:** demo tương tác vẽ tay bằng Gradio (`demo_app.py`) — vẽ số trên canvas, model đoán trực tiếp kèm % tin cậy từng lớp. Xử lý: grayscale → tự đảo màu theo nền → resize 28×28 → normalize cùng mean/std lúc train.
+- **Còn lại (chưa làm):** tối ưu model (quantization/pruning cơ bản), đo đánh đổi kích thước vs độ chính xác — nền cho project ES sau này.
 
 ### Phase cuối — Tổng kết
 - Hoàn thiện repo GitHub, gộp report từng tuần thành báo cáo tổng, chuẩn bị trình bày với Thầy trước khi qua project mảng tiếp theo.
@@ -76,3 +77,7 @@ Bài toán cụ thể: cho 1 ảnh chữ số viết tay (0–9), model phải �
 - Mỗi buổi làm: commit, không đợi hết tuần.
 - Mỗi thứ 4: report có đủ 3 phần (kết quả – vấn đề – kế hoạch), rồi mới viết lại "1 phase/tuần tới" — không dựa vào bảng phase này để đoán trước quá xa.
 - Gặp khái niệm mới → hỏi AI → hiểu → áp dụng vào code, không học chay lý thuyết.
+
+## 6. Lưu ý khi báo cáo với Thầy
+
+Phase 1 và phần demo của Phase 3 đã làm **trước lịch** (không phải do lệch tiến độ mà do chủ động làm thêm để so sánh với 1 video tham khảo). Khi trình bày, nên nói rõ đây là phần tự làm thêm, không phải Thầy giao theo đúng tuần — tránh Thầy hiểu nhầm tiến độ chính thức đã đến tuần nào.
