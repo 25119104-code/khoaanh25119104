@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 # - torchvision.datasets: có sẵn bộ dữ liệu MNIST, không cần tự tải/xử lý
 # - DataLoader: chia dữ liệu thành từng "lô" (batch) để train hiệu quả hơn
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")  # MPS bị lỗi (RuntimeError MPSFloatType), quay lại CPU cho chắc
 print("Đang chạy trên:", device)
 # -> Nhớ bật GPU: Colab: Runtime > Change runtime type > GPU
 #    Kaggle: Settings > Accelerator > GPU
@@ -48,16 +48,18 @@ test_loader  = DataLoader(test_dataset, batch_size=1000, shuffle=False)
 # - shuffle=True: xáo trộn dữ liệu mỗi epoch để tránh mạng học theo thứ tự
 
 # Xem thử vài ảnh mẫu (không bắt buộc, chỉ để hiểu dữ liệu)
-examples = enumerate(train_loader)
-_, (example_data, example_targets) = next(examples)
-fig = plt.figure()
-for i in range(6):
-    plt.subplot(2, 3, i+1)
-    plt.imshow(example_data[i][0], cmap="gray")
-    plt.title(f"Label: {example_targets[i].item()}")
-    plt.axis("off")
-plt.tight_layout()
-plt.show()
+# Đã comment vì plt.show() chặn chương trình chạy tiếp cho tới khi đóng cửa sổ.
+# Bỏ comment nếu muốn xem lại 6 ảnh mẫu này.
+# examples = enumerate(train_loader)
+# _, (example_data, example_targets) = next(examples)
+# fig = plt.figure()
+# for i in range(6):
+#     plt.subplot(2, 3, i+1)
+#     plt.imshow(example_data[i][0], cmap="gray")
+#     plt.title(f"Label: {example_targets[i].item()}")
+#     plt.axis("off")
+# plt.tight_layout()
+# plt.show()
 
 # %% [3] XÂY DỰNG MODEL (CNN - Convolutional Neural Network)
 class DigitCNN(nn.Module):
@@ -91,6 +93,14 @@ class DigitCNN(nn.Module):
 
 model = DigitCNN().to(device)
 print(model)
+
+# Xem summary dạng bảng (giống model.summary() bên Keras) — cần cài torchinfo:
+#   pip install torchinfo --break-system-packages
+try:
+    from torchinfo import summary
+    summary(model, input_size=(1, 1, 28, 28))  # batch=1, 1 kênh màu, ảnh 28x28
+except ImportError:
+    print("(Bỏ qua bảng summary: chưa cài torchinfo -> pip install torchinfo --break-system-packages)")
 
 # %% [4] HÀM LOSS VÀ OPTIMIZER
 criterion = nn.CrossEntropyLoss()               # hàm mất mát cho bài toán phân loại nhiều lớp
@@ -164,7 +174,18 @@ with torch.no_grad():
     output = model(sample_data)
     pred = output.argmax(dim=1)
 
-plt.imshow(sample_data[0][0].cpu(), cmap="gray")
-plt.title(f"Dự đoán: {pred[0].item()} | Thật: {sample_target[0].item()}")
-plt.axis("off")
-plt.show()
+print(f"Dự đoán: {pred[0].item()} | Thật: {sample_target[0].item()}")
+# Đã comment vì plt.show() chặn chương trình, thay bằng print() ở trên.
+# Bỏ comment nếu muốn xem trực tiếp ảnh kèm nhãn.
+# plt.imshow(sample_data[0][0].cpu(), cmap="gray")
+# plt.title(f"Dự đoán: {pred[0].item()} | Thật: {sample_target[0].item()}")
+# plt.axis("off")
+# plt.show()
+
+dummy_input = torch.randn(1, 1, 28, 28).to(device)
+torch.onnx.export(
+    model, dummy_input, "digit_cnn.onnx",
+    input_names=["input"], output_names=["output"],
+    dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}}
+)
+print("Đã xuất digit_cnn.onnx")

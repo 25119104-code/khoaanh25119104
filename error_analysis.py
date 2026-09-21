@@ -14,7 +14,7 @@ from torchvision import datasets, transforms
 import matplotlib.pyplot as plt
 import numpy as np
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")  # MPS bị lỗi (RuntimeError MPSFloatType), quay lại CPU cho chắc
 
 # %% [1] LOAD LẠI ĐÚNG KIẾN TRÚC MODEL (phải giống hệt lúc train)
 class DigitCNN(nn.Module):

@@ -148,7 +148,14 @@ with gr.Blocks(title="Nhận diện chữ số viết tay") as demo:
         predict_btn = gr.Button("Đoán", variant="primary")
         clear_btn = gr.Button("Xóa")
 
-    predict_btn.click(fn=predict, inputs=canvas, outputs=[result_text, prob_plot])
+    # disable nút khi đang xử lý, bật lại khi có kết quả -> tránh bấm chồng gây lệch kết quả
+    predict_btn.click(
+        fn=lambda: gr.update(interactive=False), inputs=None, outputs=predict_btn
+    ).then(
+        fn=predict, inputs=canvas, outputs=[result_text, prob_plot], concurrency_limit=1
+    ).then(
+        fn=lambda: gr.update(interactive=True), inputs=None, outputs=predict_btn
+    )
     clear_btn.click(fn=lambda: (None, "", None), inputs=None, outputs=[canvas, result_text, prob_plot])
 
 if __name__ == "__main__":
