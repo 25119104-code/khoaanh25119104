@@ -187,7 +187,7 @@ Phương pháp "thực chiến": code đã chạy → phân tích vì sao dùng 
 - **Backlog kế tiếp:** `Adam` vs `SGD`; cơ chế toán học của `Dropout` (Bernoulli mask + scale).
 - **Nấc 2 (nối sang Phase 2A):** với mỗi thành phần đã hiểu, viết luôn **công thức toán + mã giả** vào `/operators/<tên>.md`. Hiểu xong mà không ghi lại thì tới lúc viết C phải học lại từ đầu.
 
-### Phase 1.7 — Thu gọn kiến trúc ⬜ 🔄 (MỚI 21/09, bước 2b — từ feedback tuần 2)
+### Phase 1.7 — Thu gọn kiến trúc ✅ HOÀN THÀNH 21/09 (bước 2b — từ feedback tuần 2)
 
 Thầy nêu trực tiếp ở buổi báo cáo: 206,922 params là quá nhiều, một bạn khác chỉ 5,018. Đây là yêu cầu, không phải gợi ý.
 
@@ -210,8 +210,43 @@ Thứ tự làm:
 
 **File:** `model_comparison.py` — đã có sẵn validation set, cả 2 kiến trúc, bảng đếm params theo lớp, và bảng so sánh cuối.
 
+`final_table.py` — nạp checkpoint có sẵn và in lại bảng cuối, không train lại.
+
+### ✅ Kết quả thật (21/09/2026)
+
+| | DigitCNN | SmallCNN |
+|---|---|---|
+| Params | 206,922 | **5,018** |
+| Bộ nhớ float32 | 808.3 KB | **19.6 KB** |
+| Bộ nhớ int8 (ước tính) | 202.1 KB | **4.9 KB** |
+| Val acc | 98.96% | 98.79% |
+| **Test acc** | **99.05%** | **98.82%** |
+| Epoch tốt nhất | 7/8 | 27/30 |
+
+**Đánh đổi: 41.2× ít params, mất 0.23% accuracy.** Cách nói cho slide: *giữ 99.8% hiệu năng với 2.4% bộ nhớ.*
+
+**→ CHỐT: dùng `SmallCNN` cho mọi phase sau (2A → 2E).**
+
+Lý do chốt:
+- Thầy yêu cầu trực tiếp giảm params.
+- Phân bố params đều — lớp nặng nhất `conv3` chiếm 46.23%, không còn nút thắt 97% như `fc1`. Dễ chia tài nguyên BRAM khi thiết kế RTL ở project 2.
+- Không có Dropout → Phase 2B gần như không còn việc.
+- 4.9 KB sau int8 — nhét vừa mọi FPGA kể cả loại nhỏ nhất.
+- Giá phải trả: 0.23% accuracy (23 ảnh / 10.000) và train lâu hơn 3.75× (30 vs 8 epoch). Train một lần rồi thôi, không đáng kể.
+
+**3 phát hiện đáng đưa vào report:**
+
+1. **8 epoch là cắt ngang giữa chừng.** SmallCNN ở 8 epoch chỉ đạt val 98.42%, tới epoch 27 lên 98.79% — tăng 0.37% mà không đổi một dòng kiến trúc. Ít params hơn 41 lần thì học chậm hơn, phải cho nhiều epoch hơn. Dùng chung một con số epoch cho hai model là so một model đã hội tụ với một model chưa.
+2. **Test acc (98.82%) > val acc (98.79%).** Val acc là giá trị lớn nhất trong 30 lần đo nên tự nó hơi lạc quan; test set chỉ chạm 1 lần, không dùng chọn gì, mà vẫn cao hơn → kết quả không phải ăn may khi chọn epoch. Đây là bằng chứng validation set hoạt động đúng.
+3. **So với model 5,018 params của bạn năm 4: 98.82% vs 98.88%** — kém 0.06%, tức ngang nhau, trong khi mình train trên 50k còn bạn đó 60k (không tách val).
+
+### Việc tồn sinh ra từ Phase 1.7
+
+- `demo_app.py` và `error_analysis.py` vẫn dùng class `DigitCNN` + `digit_cnn.pth` → phải đổi sang `SmallCNN` + `small_cnn.pth`.
+- Class model hiện bị chép ở **4 file** (`mnist_digit_recognition.py`, `demo_app.py`, `error_analysis.py`, `model_comparison.py`). Gom vào `models.py`, các file khác `from models import ...`. Giờ đã chốt kiến trúc nên làm được, và làm trước Phase 2A để khỏi sửa 4 chỗ mỗi lần.
+
 ### Phase 2A — Viết operator ⬜ (bước 3–4 của Thầy)
-- Chạy trên **kiến trúc đã chốt ở Phase 1.7**, không phải kiến trúc 206k.
+- Chạy trên **`SmallCNN` (5,018 params) — đã chốt ở Phase 1.7**, không phải kiến trúc 206k.
 - Mỗi operator có 1 file trong `/operators/`: công thức toán → mã giả (vòng lặp thuần) → đánh giá mức FPGA-friendly.
 - Danh sách: `Conv2d`, `ReLU`, `MaxPool2d`, `Flatten`, `Linear` (+ `argmax`). `Softmax` chỉ nếu giữ lại.
 - Sau khi viết xong mã giả: rà lại phép toán nào đắt (mục 3.4), quyết định thay/bỏ. **Nếu phải thay thì train lại** — chi phí thật, phải tính trước.
@@ -219,7 +254,7 @@ Thứ tự làm:
 
 ### Phase 2B — Xác định model inference ⬜ (bước 5 của Thầy)
 - Liệt kê rõ: model inference **khác** model train ở chỗ nào.
-  - `Dropout` → bỏ. *(Kiến trúc 5k không có Dropout → nếu chốt kiến trúc đó thì bước này không còn việc.)*
+  - `Dropout` → **không còn việc**: `SmallCNN` đã chốt và nó vốn không có Dropout.
   - `BatchNorm` → fold vào Conv/Linear (cả 2 kiến trúc hiện chưa có BN).
   - `Softmax` → bỏ, thay bằng `argmax` trên logits (trừ khi cần % tin cậy).
   - Loss + optimizer → không tồn tại.
@@ -257,7 +292,7 @@ Thứ tự làm:
 
 ### Phase 3 — Đóng gói & tổng kết
 - **Đã xong trước lịch:** demo Gradio vẽ tay (`demo_app.py`) — canvas → grayscale → tự đảo màu theo nền → resize 28×28 → normalize cùng mean/std lúc train → dự đoán kèm % tin cậy.
-  - ⚠️ Nếu chốt kiến trúc mới ở Phase 1.7 thì phải cập nhật `demo_app.py` theo (đổi class model + file `.pth`).
+  - ⚠️ **Việc tồn**: đã chốt `SmallCNN` nên `demo_app.py` phải đổi class model + đổi sang `small_cnn.pth`. Chưa làm.
 - Gộp report từng tuần thành báo cáo tổng, chuẩn bị trình bày trước khi qua project mảng tiếp theo.
 
 ### Ngoài trục — chỉ làm nếu dư thời gian
@@ -388,3 +423,8 @@ OCR số hoá văn bản viết tay · Ngân hàng đọc số tiền trên séc
 - **Params 206,922 là quá nhiều** — Thầy nêu ví dụ model của một bạn năm 4 chỉ **5,018 params, test acc 98.88%** (Keras/TF, 3 conv + 3 pool + Dense(144→10) thẳng, không FC ẩn, không Dropout). → sinh **Phase 1.7**.
 - **"Tối ưu trọng số khi đưa vào chip"** → sinh **Phase 2E**; quantization rời "Ngoài trục" lên trục chính, đặt sau golden model C float32.
 - **"Thư viện PyTorch hay TF đều được, không sao cả"** → chốt giữ PyTorch; rủi ro `.h5` bị loại; bỏ mục "thử framework thứ 2" khỏi backlog.
+
+### Kết quả tuần 3 (21/09/2026)
+- Validation set xong (50k/10k/10k), checkpoint lưu theo best val acc — hết data leakage, sửa luôn lỗi epoch 7 vs 8.
+- Phase 1.7 xong: **chốt `SmallCNN` 5,018 params / test 98.82%**, thay cho 206,922 params / 99.05%.
+- Phase 1.5: hiểu xong `Conv2d` và `MaxPool2d`, đã viết `operators/conv2d.md` + `operators/maxpool2d.md` (công thức + mã giả + bẫy khi port sang C). Còn `CrossEntropyLoss`.

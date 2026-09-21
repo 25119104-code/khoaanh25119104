@@ -21,9 +21,19 @@ from torchvision import datasets, transforms
 # [0] CẤU HÌNH
 # ------------------------------------------------------------
 SEED = 42
-NUM_EPOCHS = 8
 BATCH_SIZE = 64
 LR = 0.001
+
+# Số epoch RIÊNG cho từng model — cố ý KHÔNG dùng chung một con số.
+#   DigitCNN: val acc dao động quanh đỉnh từ epoch 5 và tụt ở epoch 8 -> đã hội tụ,
+#             train thêm chỉ overfit, không cải thiện.
+#   SmallCNN: ít hơn 41 lần params nên học chậm hơn; val acc tăng đều 8/8 epoch,
+#             epoch cuối vẫn là tốt nhất -> chưa chạm trần, phải cho chạy dài hơn.
+# Dùng chung 8 epoch cho cả hai là so một model đã hội tụ với một model bị cắt giữa chừng.
+EPOCHS = {
+    "DigitCNN": 8,
+    "SmallCNN": 30,
+}
 
 # CPU cố định: MPS (GPU Apple Silicon) gây RuntimeError: MPSFloatType
 device = torch.device("cpu")
@@ -189,7 +199,7 @@ def evaluate(model, loader):
     return 100 * correct / total
 
 
-def train_model(model, name, ckpt_path, epochs=NUM_EPOCHS):
+def train_model(model, name, ckpt_path, epochs):
     """Train và lưu checkpoint theo VAL accuracy cao nhất.
 
     KHÁI NIỆM MỚI: vì sao lưu theo best val acc
@@ -230,7 +240,16 @@ def train_model(model, name, ckpt_path, epochs=NUM_EPOCHS):
 
         print(f"Epoch {epoch}/{epochs} | loss {avg_loss:.4f} | val acc {val_acc:.2f}%{flag}")
 
-    print(f"Tốt nhất: epoch {best_epoch} — val acc {best_val:.2f}% (đã lưu {ckpt_path})")
+    print(f"Tốt nhất: epoch {best_epoch}/{epochs} — val acc {best_val:.2f}% (đã lưu {ckpt_path})")
+
+    # Cảnh báo hội tụ: nếu epoch CUỐI vẫn là epoch tốt nhất thì đường val acc chưa đi ngang,
+    # nghĩa là còn dư địa. Con số lúc này là "đang học dở", không phải trần của kiến trúc.
+    if best_epoch == epochs:
+        print(f"  [!] Epoch cuối vẫn là tốt nhất -> CHƯA hội tụ. "
+              f"Tăng EPOCHS['{type(model).__name__}'] rồi chạy lại.")
+    else:
+        print(f"  [ok] Đỉnh rơi vào epoch {best_epoch}, còn {epochs - best_epoch} epoch sau "
+              f"không cải thiện -> coi như đã hội tụ.")
 
     # Nạp lại trọng số tốt nhất trước khi trả về, không dùng trọng số epoch cuối
     model.load_state_dict(torch.load(ckpt_path))
@@ -255,8 +274,9 @@ if __name__ == "__main__":
         set_seed()                      # cùng seed -> so sánh công bằng
         model = cls()
         n_params = param_table(model, name)
-        model, best_val, best_epoch, _ = train_model(model, name, ckpt)
-        results.append((name, n_params, best_val, best_epoch, model))
+        n_epochs = EPOCHS[cls.__name__]
+        model, best_val, best_epoch, _ = train_model(model, name, ckpt, n_epochs)
+        results.append((name, n_params, best_val, best_epoch, n_epochs, model))
 
     # --------------------------------------------------------
     # TEST SET — chạm ĐÚNG 1 LẦN, ở đây, sau khi mọi quyết định đã chốt
@@ -268,12 +288,12 @@ if __name__ == "__main__":
     print("-" * 78)
 
     baseline_params = baseline_test = None
-    for name, n_params, best_val, best_epoch, model in results:
+    for name, n_params, best_val, best_epoch, n_epochs, model in results:
         test_acc = evaluate(model, test_loader)
         if baseline_params is None:
             baseline_params, baseline_test = n_params, test_acc
         print(f"{name:<32}{n_params:>10,}{n_params * 4 / 1024:>7.1f}K"
-              f"{best_val:>9.2f}%{test_acc:>9.2f}%{best_epoch:>8}")
+              f"{best_val:>9.2f}%{test_acc:>9.2f}%{f'{best_epoch}/{n_epochs}':>8}")
 
         if n_params != baseline_params:
             ratio = baseline_params / n_params
