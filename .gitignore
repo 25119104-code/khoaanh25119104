@@ -1,6 +1,34 @@
+# ===== Dữ liệu =====
+# MNIST tự tải lại khi chạy script
 data/
+
+# ===== Python =====
 __pycache__/
 *.pyc
-*.png
+venv/
+.ipynb_checkpoints/
+
+# ===== macOS =====
 .DS_Store
+
+# ===== Claude =====
 Claude outputs/
+
+# ===== Audio NotebookLM (40MB/file, chỉ để nghe, không commit) =====
+*.m4a
+
+# ===== Trọng số model =====
+# Mặc định bỏ qua: mỗi lần train sinh blob ~831KB, Git giữ lại vĩnh viễn.
+# Ngoại lệ bên dưới = bản CHỐT của từng milestone (đã đóng băng, không train lại),
+# giữ trong repo để clone về là chạy demo được ngay.
+# Chốt kiến trúc mới ở Phase 1.7 thì thêm dòng "!small_cnn.pth".
+*.pth
+*.pt
+!digit_cnn.pth
+
+# ===== Export ONNX (chỉ để xem bằng Netron, chạy lại script là có) =====
+*.onnx
+*.onnx.data
+
+# LƯU Ý: ảnh .png (confusion_matrix, error_analysis) CỐ Ý không ignore —
+# là bằng chứng học tập, report dẫn tới, và GitHub hiển thị trực tiếp.
