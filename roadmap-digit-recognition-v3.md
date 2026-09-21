@@ -71,6 +71,27 @@ Train model (AI) → Export parameters → Golden model (C) → Thiết kế RTL
 
 ---
 
+## 2b. Phương pháp học "thực chiến" và nhóm sản phẩm tài liệu
+
+> ⚠️ **Bổ sung 21/09 — chỗ v3 đã bỏ sót hoàn toàn.** Roadmap v1→v3 chỉ bám trục kỹ thuật (operator → golden model C → quantization) và **không có một dòng nào** về Slide/Word, trong khi tài liệu "Cách học Thực chiến" của Thầy yêu cầu chúng ngay từ bước 2. Đây là lần thứ ba roadmap lệch vì dựng từ thông tin thiếu.
+
+Thầy chia việc học thành 4 bước, mỗi bước có sản phẩm riêng:
+
+| Bước | Nội dung | Sản phẩm | Trạng thái |
+|---|---|---|---|
+| 1 | Triển khai từng phần (AI first) | code chạy được | ✅ Xong |
+| 2 | Chạy baseline | **Slide**: từng bước, ý nghĩa sơ bộ | ✅ `docs/slide-baseline-cnn.pptx` (11 slide) |
+| 3 | Giải thích ý nghĩa: flow, khối, từ khoá, tham số, câu lệnh, kết quả, công thức | **Word**: chi tiết từng loại, *giá trị tăng/giảm thì khác gì* | ✅ `docs/buoc3-giai-thich-y-nghia.docx` |
+| 4 | Kiến thức liên quan | **Word**: mỗi kiến thức có giải pháp thay thế/tương đương nào | ✅ `docs/buoc4-kien-thuc-lien-quan.docx` |
+
+**Yêu cầu về cách viết (theo Thầy):** cô đọng, không lan man; ảnh/công thức copy từ AI hay web đều được; kèm ví dụ; **có mục lục**; viết nghiêm túc.
+
+**Vì sao Thầy nhấn mạnh phần văn bản:** nghiên cứu cần 2 bước — (1) *chạy được + hiểu* (phục vụ teamwork, dự án lớn) và (2) *thể hiện được kết quả qua văn bản* (phục vụ đồ án, LVTN, NCKH). Trục kỹ thuật của roadmap chỉ lo bước (1); nhóm tài liệu này lo bước (2).
+
+**Nguyên tắc từ nay:** mỗi phase kỹ thuật hoàn thành thì cập nhật luôn tài liệu tương ứng, không để dồn. `operators/*.md` là bản nháp kỹ thuật, tài liệu Word là bản nộp.
+
+---
+
 ## 3. Params — vấn đề Thầy nêu ở buổi báo cáo tuần 2
 
 ### 3.1 Model hiện tại: 206,922 params
@@ -333,6 +354,7 @@ Golden model chỉ có giá trị khi chứng minh được nó khớp với mod
 /operators      # công thức + mã giả từng operator (.md)
 /params         # weight/bias đã trích + file mô tả shape (+ scale/zero-point khi quantize)
 /golden_model   # source C + Makefile + kết quả đối chiếu (float32 và fixed-point)
+/docs           # MỚI: slide + tài liệu Word nộp Thầy (bước 2, 3, 4)
 ```
 
 **File chính:**
@@ -343,6 +365,9 @@ Golden model chỉ có giá trị khi chứng minh được nó khớp với mod
 | `model_comparison.py` | 🔄 Validation set + DigitCNN vs SmallCNN + đếm params + bảng đánh đổi |
 | `error_analysis.py` | Confusion matrix, accuracy theo lớp |
 | `demo_app.py` | Demo Gradio vẽ tay |
+| `docs/slide-baseline-cnn.pptx` | 🔄 Slide bước 2 — chạy baseline, từng bước và ý nghĩa |
+| `docs/buoc3-giai-thich-y-nghia.docx` | 🔄 Word bước 3 — flow, khối, từ khoá, tham số tăng/giảm, công thức |
+| `docs/buoc4-kien-thuc-lien-quan.docx` | 🔄 Word bước 4 — phương án thay thế cho từng lựa chọn |
 
 **Checkpoint — đừng để đè nhau:**
 
