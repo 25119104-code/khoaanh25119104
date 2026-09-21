@@ -14,6 +14,11 @@ from torchvision import datasets, transforms
 import matplotlib.pyplot as plt
 import numpy as np
 
+import os
+os.makedirs("models", exist_ok=True)   # noi chua .pth va .onnx
+os.makedirs("figures", exist_ok=True)  # noi chua .png
+
+
 device = torch.device("cpu")  # MPS bị lỗi (RuntimeError MPSFloatType), quay lại CPU cho chắc
 
 # %% [1] LOAD LẠI ĐÚNG KIẾN TRÚC MODEL (phải giống hệt lúc train)
@@ -38,7 +43,7 @@ class DigitCNN(nn.Module):
         return x
 
 model = DigitCNN().to(device)
-model.load_state_dict(torch.load("digit_cnn.pth", map_location=device))
+model.load_state_dict(torch.load("models/digit_cnn.pth", map_location=device))
 model.eval()  # tắt Dropout — nhớ lý do đã học: cần kết quả ổn định, không ngẫu nhiên
 
 # %% [2] LOAD TẬP TEST
@@ -110,7 +115,7 @@ for d in range(10):
 
 plt.suptitle("Các ảnh bị đoán sai theo từng chữ số thật (T=thật, P=model đoán)")
 plt.tight_layout()
-plt.savefig("error_analysis.png", dpi=120)
+plt.savefig("figures/error_analysis.png", dpi=120)
 print("\nĐã lưu lưới ảnh sai vào error_analysis.png")
 
 # %% [7] VẼ HEATMAP MA TRẬN NHẦM LẪN
@@ -127,5 +132,5 @@ for i in range(10):
         ax2.text(j, i, confusion[i][j], ha="center", va="center", color=color, fontsize=8)
 plt.colorbar(im, ax=ax2)
 plt.tight_layout()
-plt.savefig("confusion_matrix.png", dpi=120)
+plt.savefig("figures/confusion_matrix.png", dpi=120)
 print("Đã lưu confusion matrix vào confusion_matrix.png")

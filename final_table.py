@@ -22,10 +22,14 @@ from model_comparison import (
     device,
 )
 
+import os
+os.makedirs("models", exist_ok=True)   # noi chua .pth va .onnx
+os.makedirs("figures", exist_ok=True)  # noi chua .png
+
 # (class, tên hiển thị, file checkpoint, số epoch đã chạy)
 RUNS = [
-    (DigitCNN, "A. DigitCNN (bản gốc tuần 1)", "digit_cnn_val.pth", 8),
-    (SmallCNN, "B. SmallCNN (kiến trúc gọn)",  "small_cnn.pth",     30),
+    (DigitCNN, "A. DigitCNN (bản gốc tuần 1)", "models/digit_cnn_val.pth", 8),
+    (SmallCNN, "B. SmallCNN (kiến trúc gọn)",  "models/small_cnn.pth",     30),
 ]
 
 

@@ -19,6 +19,11 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 import matplotlib.pyplot as plt
 
+import os
+os.makedirs("models", exist_ok=True)   # noi chua .pth va .onnx
+os.makedirs("figures", exist_ok=True)  # noi chua .png
+
+
 # Khái niệm mới:
 # - torch.nn: chứa các "khối xây dựng" mạng neural (layer, hàm loss...)
 # - torchvision.datasets: có sẵn bộ dữ liệu MNIST, không cần tự tải/xử lý
@@ -160,7 +165,7 @@ for epoch in range(1, NUM_EPOCHS + 1):
     evaluate()
 
 # %% [8] LƯU MODEL
-torch.save(model.state_dict(), "digit_cnn.pth")
+torch.save(model.state_dict(), "models/digit_cnn.pth")
 print("Đã lưu model vào digit_cnn.pth")
 
 # Khi Thầy gửi model nhỏ hơn để train nhanh, bạn chỉ cần thay class DigitCNN
@@ -184,7 +189,7 @@ print(f"Dự đoán: {pred[0].item()} | Thật: {sample_target[0].item()}")
 
 dummy_input = torch.randn(1, 1, 28, 28).to(device)
 torch.onnx.export(
-    model, dummy_input, "digit_cnn.onnx",
+    model, dummy_input, "models/digit_cnn.onnx",
     input_names=["input"], output_names=["output"],
     dynamic_axes={"input": {0: "batch_size"}, "output": {0: "batch_size"}}
 )

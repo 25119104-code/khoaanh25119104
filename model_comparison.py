@@ -17,6 +17,11 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 from torchvision import datasets, transforms
 
+import os
+os.makedirs("models", exist_ok=True)   # noi chua .pth va .onnx
+os.makedirs("figures", exist_ok=True)  # noi chua .png
+
+
 # ------------------------------------------------------------
 # [0] CẤU HÌNH
 # ------------------------------------------------------------
@@ -262,14 +267,14 @@ def train_model(model, name, ckpt_path, epochs):
 if __name__ == "__main__":
     results = []
 
-    # CHÚ Ý tên checkpoint: KHÔNG dùng "digit_cnn.pth".
+    # CHÚ Ý tên checkpoint: KHÔNG dùng "models/digit_cnn.pth".
     #   File đó do mnist_digit_recognition.py tạo (train trên 60k, lưu epoch cuối).
     #   Bản ở đây train trên 50k (đã tách 10k làm val) và lưu theo best val acc
     #   -> trọng số khác hẳn. Ghi đè lên file cũ sẽ làm demo_app.py và
     #   error_analysis.py âm thầm chạy bằng model khác mà không báo lỗi gì.
     for cls, name, ckpt in [
-        (DigitCNN, "A. DigitCNN (bản gốc tuần 1)", "digit_cnn_val.pth"),
-        (SmallCNN, "B. SmallCNN (kiến trúc gọn)",  "small_cnn.pth"),
+        (DigitCNN, "A. DigitCNN (bản gốc tuần 1)", "models/digit_cnn_val.pth"),
+        (SmallCNN, "B. SmallCNN (kiến trúc gọn)",  "models/small_cnn.pth"),
     ]:
         set_seed()                      # cùng seed -> so sánh công bằng
         model = cls()

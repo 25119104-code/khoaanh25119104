@@ -23,6 +23,11 @@ import numpy as np
 import gradio as gr
 from PIL import Image
 
+import os
+os.makedirs("models", exist_ok=True)   # noi chua .pth va .onnx
+os.makedirs("figures", exist_ok=True)  # noi chua .png
+
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # %% [1] KIẾN TRÚC MODEL — PHẢI GIỐNG HỆT LÚC TRAIN
@@ -47,7 +52,7 @@ class DigitCNN(nn.Module):
         return x
 
 model = DigitCNN().to(device)
-model.load_state_dict(torch.load("digit_cnn.pth", map_location=device))
+model.load_state_dict(torch.load("models/digit_cnn.pth", map_location=device))
 model.eval()  # tắt Dropout, cần dự đoán ổn định
 
 # %% [2] CHUẨN HÓA GIỐNG HỆT LÚC TRAIN (Normalize MNIST)

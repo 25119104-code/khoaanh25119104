@@ -21,6 +21,11 @@ import matplotlib.pyplot as plt
 # Class DigitCNN hiện đã bị chép ở 4 file — đây là lý do nên gom vào models.py.
 from model_comparison import DigitCNN, SmallCNN, test_loader, device
 
+import os
+os.makedirs("models", exist_ok=True)   # noi chua .pth va .onnx
+os.makedirs("figures", exist_ok=True)  # noi chua .png
+
+
 MEAN, STD = 0.1307, 0.3081                 # để đảo chuẩn hoá khi hiển thị ảnh
 
 
@@ -126,10 +131,10 @@ def plot_per_class(conf_a, conf_b, path):
 
 if __name__ == "__main__":
     print("\n[1/4] Phan tich SmallCNN tren test set...")
-    conf_s, wrong_s = analyze(SmallCNN(), "small_cnn.pth")
+    conf_s, wrong_s = analyze(SmallCNN(), "models/small_cnn.pth")
 
     print("[2/4] Phan tich DigitCNN de doi chieu...")
-    conf_d, _ = analyze(DigitCNN(), "digit_cnn_val.pth")
+    conf_d, _ = analyze(DigitCNN(), "models/digit_cnn_val.pth")
 
     # ---- so sánh cặp hay nhầm ----
     print("\n" + "=" * 62)
@@ -147,18 +152,18 @@ if __name__ == "__main__":
 
     print("\n[3/4] Ve hinh...")
     plot_confusion(conf_s, "Confusion Matrix — SmallCNN (5.018 params)",
-                   "confusion_matrix_small.png")
+                   "figures/confusion_matrix_small.png")
     plot_wrong(wrong_s, "Anh SmallCNN doan sai (T = that, P = doan)",
-               "error_analysis_small.png")
-    plot_samples("mnist_samples.png")
-    plot_per_class(conf_d, conf_s, "per_class_accuracy.png")
+               "figures/error_analysis_small.png")
+    plot_samples("figures/mnist_samples.png")
+    plot_per_class(conf_d, conf_s, "figures/per_class_accuracy.png")
 
     print("\n[4/4] Xuat ONNX de xem bang Netron (netron.app)...")
     model = SmallCNN().to(device)
-    model.load_state_dict(torch.load("small_cnn.pth", map_location=device))
+    model.load_state_dict(torch.load("models/small_cnn.pth", map_location=device))
     model.eval()
     torch.onnx.export(
-        model, torch.randn(1, 1, 28, 28, device=device), "small_cnn.onnx",
+        model, torch.randn(1, 1, 28, 28, device=device), "models/small_cnn.onnx",
         input_names=["input"], output_names=["logits"], opset_version=18,
         # opset 18: torch moi chi co implementation cho >=18. De 13 van xuat duoc
         # nhung in ra mot traceback "No Adapter From Version 14 for Relu" gay hoang mang.
