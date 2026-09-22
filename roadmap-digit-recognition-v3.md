@@ -7,6 +7,21 @@
 > 2. **Giảm params**: model hiện tại 206,922 params, Thầy nêu ví dụ một bạn khác chỉ 5,018 → thêm **Phase 1.7 (thu gọn kiến trúc)**.
 > 3. **"Tối ưu trọng số khi đưa vào chip"** → quantization lên trục chính, thành **Phase 2E**.
 > 4. **"PyTorch hay TensorFlow đều được"** → chốt giữ PyTorch, rủi ro `.h5` bị loại.
+>
+> ✅ **Cập nhật 22/09/2026 — Thầy đã trả lời, phần lớn mục 8 đóng lại:**
+> 1. **Project này chạy trọn flow AI → IC → ES**, mảng nào cũng làm, mục đích là để mỗi người
+>    tìm ra mảng mình thích rồi mới chuyên sâu. → Golden model C **chắc chắn thuộc project 1**.
+>    Giả thuyết mở rộng phạm vi ở mục 0 là đúng; nhưng xem rủi ro số 7 ở mục 9 — phạm vi có thể
+>    còn rộng hơn cả v3 đang ghi.
+> 2. **Chưa cần tối ưu accuracy, hyperparameter hay quantization.** Trọng tâm là **đưa được vào
+>    FPGA và tối ưu phép toán**. → Không có ngưỡng accuracy phải giữ; 98,82% chấp nhận được.
+>    **Phase 2E xuống ưu tiên thấp**, chỉ làm nếu còn hứng thú và còn thời gian.
+> 3. **Tránh các phép `exp`, `sqrt`.** → Việc bỏ softmax đi đúng hướng Thầy muốn, không phải
+>    sáng kiến riêng. Đường inference sau khi bỏ softmax chỉ còn `+`, `×`, so sánh → golden
+>    model C **không cần `math.h`**, câu hỏi 3 tự đóng.
+> 4. **Thư viện nào cũng được, Thầy khuyến khích tự mày mò**, không cần bám đúng cách Thầy làm;
+>    tiêu chí là **có cố gắng và có kết quả**. → Câu hỏi 6 (dùng kiến trúc tham chiếu hay tự
+>    thiết kế) đóng: tự làm, tự chịu trách nhiệm giải thích.
 
 ---
 
@@ -394,17 +409,27 @@ Golden model chỉ có giá trị khi chứng minh được nó khớp với mod
 - **Ưu tiên: Phase 1.5 hay validation set trước?** Thầy: *"viết code có thêm validation set"* → validation set là yêu cầu đã chốt, làm song song với Phase 1.5 tuần 3.
 - **Params 206,922 có phải vấn đề không?** Thầy nêu trực tiếp ở buổi báo cáo, kèm ví dụ model 5,018 params → phải giảm. Sinh Phase 1.7.
 
-### ⬜ Còn phải hỏi (buổi thứ 4 tới)
+### ✅ Đã được trả lời 22/09/2026
 
-1. **Golden model C có nằm trong project 1 (mảng AI) không, hay là đầu việc của project IC?** Em đọc tài liệu Thầy thì thấy nó vẫn thuộc công đoạn AI ("công đoạn học về IC, ES sẽ diễn ra sau khi done bước 1"), nên em mở rộng phạm vi roadmap. Nhờ Thầy xác nhận. *(Câu này quyết định toàn bộ v3 đúng hay sai.)*
-2. **Bước "thay phép toán khó triển khai xuống FPGA":** kiến trúc của em chỉ có `Softmax` là đắt (exp + chia), mà softmax bỏ được khi inference vì `argmax` cho cùng kết quả. Vậy bước này còn việc gì không, hay Thầy muốn em thêm lớp khác (BatchNorm chẳng hạn) để có cái mà xử lý cho đúng quy trình?
-3. **Mức "thuần" của golden model C:** chỉ dùng thư viện chuẩn C (`stdio.h`, `stdlib.h`), hay được dùng `math.h` (`expf`, `sqrtf`)? Câu trả lời đổi cách em viết softmax nếu vẫn phải giữ nó.
-4. **"Tối ưu trọng số khi đưa vào chip" — cụ thể tới đâu?**
-   - Thầy muốn int8, int16 hay fixed-point Qm.n tự chọn?
-   - FPGA mục tiêu là board nào, có ràng buộc bit-width / tài nguyên DSP cụ thể không?
-   - Việc này làm **sau** khi golden model C float32 chạy đúng, hay Thầy muốn làm ngay từ lúc trích tham số? *(Em nghiêng về làm sau — cần bản float32 làm chuẩn để verify.)*
-5. **Ngưỡng accuracy chấp nhận được là bao nhiêu?** *(mới)* Model 5,018 params của bạn kia đạt 98.88%, model 206,922 params của em đạt 99.21%. Em nên chạy theo con số params (càng nhỏ càng tốt), hay có sàn accuracy phải giữ? Nếu em giảm còn 5k mà kéo accuracy lên 99% thì có đạt không?
-6. **Em có nên dùng đúng kiến trúc của bạn kia không**, hay Thầy muốn em tự thiết kế một kiến trúc khác cùng ngân sách params? *(mới)*
+| Câu hỏi cũ | Thầy trả lời | Hệ quả |
+|---|---|---|
+| 1. Golden model C thuộc project 1 hay project IC? | Project này chạy trọn flow AI → IC → ES, mảng nào cũng làm | Thuộc project 1. v3 đúng hướng |
+| 2. Bước "thay phép toán khó" còn việc gì? | Tránh `exp`, `sqrt` và các phép tương tự | Bỏ softmax là đúng yêu cầu. Đổi thứ tự `relu`↔`maxpool` là phần làm thêm |
+| 3. Golden model C có được dùng `math.h`? | — (tự đóng) | Sau khi bỏ softmax, đường inference chỉ còn `+`, `×`, so sánh → `stdio.h` + `stdlib.h` là đủ |
+| 4. Quantization int8 / int16 / Qm.n? | Chưa cần quantization | Phase 2E hoãn, chỉ làm nếu còn hứng thú |
+| 5. Ngưỡng accuracy? | Chưa quan trọng tối ưu accuracy | Không có sàn. 98,82% chấp nhận được |
+| 6. Dùng kiến trúc tham chiếu hay tự thiết kế? | Thư viện nào cũng được, tự mày mò, cốt là có cố gắng và có kết quả | Tự thiết kế, miễn giải thích được |
+
+### ⬜ Còn phải hỏi
+
+1. **"Trọn flow AI → IC → ES" đi xa tới đâu trong project này?** Golden model C là đích của
+   mảng AI. Nhưng nếu mình còn phải viết RTL và chạy trên board thật thì 6 tuần còn lại phải
+   chia khác hẳn. Đây giờ là câu quyết định lịch, thay chỗ câu 1 cũ. Xem rủi ro số 7.
+2. **Board FPGA mục tiêu là gì?** Chưa chặn việc gì lúc này (quantization đã hoãn), nhưng
+   quyết định bit-width khi thật sự bước sang Phase 2E.
+3. **Golden model C cần verify tới mức nào để coi là đạt?** So từng lớp với PyTorch ở ngưỡng
+   `1e-4`, hay chỉ cần accuracy khớp trên 10.000 ảnh test? Tiêu chí này quyết định khi nào
+   được dừng.
 
 ---
 
@@ -427,6 +452,12 @@ Golden model chỉ có giá trị khi chứng minh được nó khớp với mod
 **Rủi ro số 6: chốt kiến trúc muộn.** 🔄 *(mới)* Nếu viết `/operators/*.md` và golden model C cho kiến trúc 206k rồi mới đổi sang 5k, toàn bộ phần đó phải viết lại — mã giả khác, số lớp khác, shape khác. Chặn bằng: **Phase 1.7 phải xong trước Phase 2A**, không có ngoại lệ.
 
 **Rủi ro số 7: copy kiến trúc mà không hiểu.** 🔄 *(mới)* Kiến trúc 5,018 params là của bạn khác. Chạy được nó không chứng minh được gì với Thầy — người đang chấm độ hiểu. Chặn bằng: các câu hỏi bổ sung ở Phase 1.5, phải tự trả lời được trước khi mang đi báo cáo.
+
+**Rủi ro số 8: phạm vi vừa nở ra mà lịch không nở.** 🔄 *(mới 22/09)* Thầy nói project chạy trọn
+flow AI → IC → ES. Nếu hiểu theo nghĩa rộng nhất thì sau golden model C còn RTL, synthesis và
+chạy trên board — ba khối việc mà v3 đang ghi là "KHÔNG thuộc phạm vi". Còn 6 tuần. Chặn bằng:
+hỏi thẳng câu 1 mục 8 trước khi lên lịch phần còn lại, và **không tự ý bắt đầu viết Verilog**
+để rồi bỏ dở cả hai đầu.
 
 ---
 
@@ -453,3 +484,16 @@ OCR số hoá văn bản viết tay · Ngân hàng đọc số tiền trên séc
 - Validation set xong (50k/10k/10k), checkpoint lưu theo best val acc — hết data leakage, sửa luôn lỗi epoch 7 vs 8.
 - Phase 1.7 xong: **chốt `SmallCNN` 5,018 params / test 98.82%**, thay cho 206,922 params / 99.05%.
 - Phase 1.5: hiểu xong `Conv2d` và `MaxPool2d`, đã viết `operators/conv2d.md` + `operators/maxpool2d.md` (công thức + mã giả + bẫy khi port sang C). Còn `CrossEntropyLoss`.
+
+### Feedback 22/09/2026 (trước buổi gặp thứ 4)
+- **"Project CNN này chạy full flow từ AI/IC/ES luôn, cái nào cũng làm để tìm đam mê, ai thích
+  mảng nào thì nhảy qua mảng đó."** → Golden model C thuộc project 1. Phạm vi có thể rộng hơn
+  v3 đang ghi → sinh rủi ro số 7 và câu hỏi 1 mới ở mục 8.
+- **"Chưa quan trọng tối ưu hoá ngưỡng accuracy gì cả, chỉ cần làm sao để đưa vào FPGA, tối ưu
+  phép toán."** → Không có sàn accuracy. Trọng tâm là phép toán, không phải điểm số.
+- **"Chưa cần tối ưu hyperparameter hay quantization, nếu muốn thì sau này hứng thú hẵng làm."**
+  → Phase 2E hoãn, không còn nằm trên đường găng.
+- **"Nên tránh các phép toán exp, sqrt, các thứ."** → Xác nhận hướng bỏ softmax. Golden model C
+  không cần `math.h`.
+- **"Thư viện nào cũng được, Thầy khuyến khích tự làm tự mày mò, không cần chính xác theo Thầy,
+  chỉ cần cố gắng và có kết quả."** → Tự thiết kế kiến trúc là được, miễn giải thích được.
