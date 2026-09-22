@@ -76,7 +76,7 @@ Cả ba đều **không crash**, chỉ cho kết quả sai:
 | Bỏ gì | Tiết kiệm | Vì sao đúng |
 |---|---|---|
 | **Softmax** ở lớp cuối | 10 phép `exp()` + 1 phép chia | `exp` đơn điệu tăng nên không đổi thứ tự → `argmax` ra kết quả y hệt. [argmax.md](argmax.md) mục 2 |
-| Đổi thứ tự **`relu` ↔ `maxpool`** | 10.192 → 2.548 phép ReLU (4 lần) | `max` và `relu` đều đơn điệu không giảm nên hoán vị được. Chỉ đúng với MaxPool, **sai** với AvgPool. [relu.md](relu.md) mục 5 |
+| Đổi thứ tự **`relu` ↔ `maxpool`** | 10.192 → 2.496 phép ReLU (4,08 lần) | `max` và `relu` đều đơn điệu không giảm nên hoán vị được. Chỉ đúng với MaxPool, **sai** với AvgPool. [relu.md](relu.md) mục 5 |
 
 Cả hai đều cho kết quả **giống hệt** bit-for-bit, không phải xấp xỉ.
 

@@ -60,14 +60,19 @@ Với int8 đối xứng (`zero_point = 0`), ReLU rút gọn xuống mức **m�
 - Nếu cả cửa sổ đều âm: vế trái = `relu(số âm)` = 0; vế phải = `max(0,0,0,0)` = 0.
 - Nếu có ít nhất một số dương: cả hai vế đều trả về đúng số dương lớn nhất.
 
-Mà `maxpool` đã giảm số phần tử đi 4 lần. Nên làm ReLU **sau** pool thì:
+Mà `maxpool` giảm số phần tử, nên làm ReLU **sau** pool thì rẻ hơn:
 
-| Thứ tự | Tổng phép ReLU |
-|---|---|
-| `pool(relu(x))` — code hiện tại | 10.192 |
-| `relu(pool(x))` | **2.548** |
+| Thứ tự | conv1 | conv2 | conv3 | Tổng phép ReLU |
+|---|---|---|---|---|
+| `pool(relu(x))` — code hiện tại | 8·28·28 = 6.272 | 16·14·14 = 3.136 | 16·7·7 = 784 | 10.192 |
+| `relu(pool(x))` | 8·14·14 = 1.568 | 16·7·7 = 784 | 16·3·3 = 144 | **2.496** |
 
-Giảm 4 lần, kết quả không đổi một bit. Đây đúng loại "thay/bỏ phép toán cho FPGA" mà project yêu cầu. **Lưu ý:** chỉ đúng với `MaxPool`. Với `AvgPool` thì sai, vì trung bình của các số đã cắt âm khác trung bình rồi mới cắt.
+Giảm **4,08 lần**, kết quả không đổi một bit.
+
+> **Không phải đúng 4 lần — đây là chỗ dễ ghi sai.** Lấy 10.192 ÷ 4 = 2.548 là sai 52 phép.
+> Hai pool đầu chia đúng 4 (28→14, 14→7), nhưng pool cuối 7→3 bị `floor` cắt hàng và cột cuối:
+> 16·7·7 = 784 phần tử vào mà chỉ ra 16·3·3 = 144, tức chia 5,44 chứ không phải 4.
+> Đúng cái hành vi `floor` đã nói ở `conv2d.md` — nó không chỉ đổi shape, nó đổi cả phép đếm. Đây đúng loại "thay/bỏ phép toán cho FPGA" mà project yêu cầu. **Lưu ý:** chỉ đúng với `MaxPool`. Với `AvgPool` thì sai, vì trung bình của các số đã cắt âm khác trung bình rồi mới cắt.
 
 ## 6. Chú ý khi port sang C
 
