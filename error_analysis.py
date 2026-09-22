@@ -1,18 +1,26 @@
 # ============================================================
-# PHÂN TÍCH LỖI (Error Analysis) — sau khi đã có digit_cnn.pth
+# PHÂN TÍCH LỖI (Error Analysis)
 # Mục đích: không chỉ nhìn accuracy tổng, mà xem CỤ THỂ model
 # nhầm số nào với số nào, và nhìn trực tiếp các ảnh bị đoán sai.
 # ============================================================
 #
-# CÁCH DÙNG: chạy sau khi đã có sẵn digit_cnn.pth trong cùng thư mục
-#   python3 error_analysis.py
+# CÁCH DÙNG:
+#   python3 error_analysis.py                  # SmallCNN (kiến trúc đã chốt)
+#   python3 error_analysis.py --model digit    # DigitCNN tuần 1, để đối chiếu
+#
+# Tên hình xuất ra phụ thuộc model, nên chạy model này KHÔNG ghi đè hình của
+# model kia — tránh chuyện hình trong slide bị thay bằng hình của model khác.
+
+import argparse
 
 import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 import matplotlib.pyplot as plt
 import numpy as np
+
+# Kiến trúc nạp từ models.py — không chép lại class ở đây nữa.
+from models import DigitCNN, SmallCNN
 
 import os
 os.makedirs("models", exist_ok=True)   # noi chua .pth va .onnx
@@ -21,30 +29,26 @@ os.makedirs("figures", exist_ok=True)  # noi chua .png
 
 device = torch.device("cpu")  # MPS bị lỗi (RuntimeError MPSFloatType), quay lại CPU cho chắc
 
-# %% [1] LOAD LẠI ĐÚNG KIẾN TRÚC MODEL (phải giống hệt lúc train)
-class DigitCNN(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.conv1 = nn.Conv2d(1, 16, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
-        self.pool  = nn.MaxPool2d(2, 2)
-        self.fc1   = nn.Linear(32 * 7 * 7, 128)
-        self.fc2   = nn.Linear(128, 10)
-        self.relu  = nn.ReLU()
-        self.dropout = nn.Dropout(0.25)
+# %% [1] CHỌN MODEL — mặc định là kiến trúc đã chốt
+ap = argparse.ArgumentParser()
+ap.add_argument("--model", choices=["small", "digit"], default="small",
+                help="small = SmallCNN 5.018 params (đã chốt); digit = DigitCNN tuần 1")
+args = ap.parse_args()
 
-    def forward(self, x):
-        x = self.pool(self.relu(self.conv1(x)))
-        x = self.pool(self.relu(self.conv2(x)))
-        x = x.view(x.size(0), -1)
-        x = self.relu(self.fc1(x))
-        x = self.dropout(x)
-        x = self.fc2(x)
-        return x
+if args.model == "small":
+    model_cls, ckpt = SmallCNN, "models/small_cnn.pth"
+    label = "SmallCNN (5.018 params)"
+    out_conf, out_wrong = "figures/confusion_matrix_small.png", "figures/error_analysis_small.png"
+else:
+    model_cls, ckpt = DigitCNN, "models/digit_cnn_val.pth"
+    label = "DigitCNN (206.922 params)"
+    out_conf, out_wrong = "figures/confusion_matrix.png", "figures/error_analysis.png"
 
-model = DigitCNN().to(device)
-model.load_state_dict(torch.load("models/digit_cnn.pth", map_location=device))
-model.eval()  # tắt Dropout — nhớ lý do đã học: cần kết quả ổn định, không ngẫu nhiên
+print(f"Model: {label}  |  checkpoint: {ckpt}")
+
+model = model_cls().to(device)
+model.load_state_dict(torch.load(ckpt, map_location=device))
+model.eval()  # tắt Dropout (DigitCNN có, SmallCNN không) — cần kết quả ổn định
 
 # %% [2] LOAD TẬP TEST
 transform = transforms.Compose([
@@ -113,10 +117,10 @@ for d in range(10):
             ax.set_title(f"T:{true_l} P:{pred_l}", fontsize=8, color="red")
     axes[d][0].set_ylabel(f"Số {d}", fontsize=10, rotation=0, labelpad=20)
 
-plt.suptitle("Các ảnh bị đoán sai theo từng chữ số thật (T=thật, P=model đoán)")
+plt.suptitle(f"Ảnh bị đoán sai — {label} (T=thật, P=model đoán)")
 plt.tight_layout()
-plt.savefig("figures/error_analysis.png", dpi=120)
-print("\nĐã lưu lưới ảnh sai vào error_analysis.png")
+plt.savefig(out_wrong, dpi=120)
+print(f"\nĐã lưu lưới ảnh sai vào {out_wrong}")
 
 # %% [7] VẼ HEATMAP MA TRẬN NHẦM LẪN
 fig2, ax2 = plt.subplots(figsize=(8, 7))
@@ -125,12 +129,12 @@ ax2.set_xticks(range(10))
 ax2.set_yticks(range(10))
 ax2.set_xlabel("Model đoán")
 ax2.set_ylabel("Đáp án thật")
-ax2.set_title("Confusion Matrix")
+ax2.set_title(f"Confusion Matrix — {label}")
 for i in range(10):
     for j in range(10):
         color = "white" if confusion[i][j] > confusion.max()/2 else "black"
         ax2.text(j, i, confusion[i][j], ha="center", va="center", color=color, fontsize=8)
 plt.colorbar(im, ax=ax2)
 plt.tight_layout()
-plt.savefig("figures/confusion_matrix.png", dpi=120)
-print("Đã lưu confusion matrix vào confusion_matrix.png")
+plt.savefig(out_conf, dpi=120)
+print(f"Đã lưu confusion matrix vào {out_conf}")

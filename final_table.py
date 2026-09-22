@@ -5,11 +5,12 @@
 # CHẠY:  python final_table.py
 # ============================================================
 #
-# Lưu ý: file này import lại class model từ model_comparison.py thay vì
-# chép lại lần nữa. Hiện class DigitCNN đã bị chép ở 4 file
-# (mnist_digit_recognition / demo_app / error_analysis / model_comparison)
-# -> đổi kiến trúc là phải sửa 4 chỗ. Phase 1.7 chốt xong nên gom hết
-# vào models.py, các file khác chỉ "from models import ...".
+# Lưu ý: file này import class model qua model_comparison.py (vì cần dùng
+# cả val_loader và evaluate ở đó). Kiến trúc nay chỉ định nghĩa MỘT lần
+# trong models.py; model_comparison.py import lại và xuất ra tên cũ nên
+# dòng import phía dưới vẫn chạy y như trước.
+# Ngoại lệ có chủ ý: mnist_digit_recognition.py (baseline tuần 1) giữ bản
+# chép riêng của nó để đóng băng làm mốc so sánh.
 
 import torch
 

@@ -90,69 +90,13 @@ print(f"Train: {len(train_set):,} | Val: {len(val_set):,} | Test: {len(test_set)
 
 
 # ------------------------------------------------------------
-# [2] KIẾN TRÚC A — DigitCNN (bản gốc tuần 1, 206,922 params)
+# [2] + [3] KIẾN TRÚC — đã gom sang models.py
 # ------------------------------------------------------------
-class DigitCNN(nn.Module):
-    """Kiến trúc ban đầu. Nút thắt: fc1 chiếm 97% tổng params.
-
-    Nguyên nhân: sau 2 lần pool, feature map còn 32x7x7 = 1568 giá trị,
-    nối thẳng vào lớp ẩn 128 neuron -> 1568 x 128 = 200,704 trọng số.
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.conv1   = nn.Conv2d(1, 16, kernel_size=3, padding=1)   #     160
-        self.conv2   = nn.Conv2d(16, 32, kernel_size=3, padding=1)  #   4,640
-        self.pool    = nn.MaxPool2d(2, 2)
-        self.fc1     = nn.Linear(32 * 7 * 7, 128)                   # 200,832  <-- nút thắt
-        self.fc2     = nn.Linear(128, 10)                           #   1,290
-        self.relu    = nn.ReLU()
-        self.dropout = nn.Dropout(0.25)
-
-    def forward(self, x):
-        x = self.pool(self.relu(self.conv1(x)))   # 28 -> 14
-        x = self.pool(self.relu(self.conv2(x)))   # 14 -> 7
-        x = x.flatten(1)                          # -> 1568
-        x = self.relu(self.fc1(x))
-        x = self.dropout(x)
-        return self.fc2(x)
-
-
-# ------------------------------------------------------------
-# [3] KIẾN TRÚC B — SmallCNN (5,018 params)
-# ------------------------------------------------------------
-class SmallCNN(nn.Module):
-    """Kiến trúc gọn, port từ bản Keras của anh năm 4 (5,018 params, 98.88%).
-
-    Hai chiêu chính để giết nút thắt FC:
-      1. Thêm conv3 + pool3 -> ép spatial 7x7 xuống 3x3 TRƯỚC khi Flatten.
-         Flatten ra 144 thay vì 1568 (giảm 11 lần ngay tại đầu vào FC).
-      2. Bỏ hẳn lớp FC ẩn -> đi thẳng Dense(144 -> 10).
-
-    Cộng thêm channel nhỏ hơn (8/16/16 thay vì 16/32).
-    Không dùng Dropout: 5k params thì overfit khó xảy ra, và bỏ đi thì
-    Phase 2B (xác định model inference) nhẹ hơn.
-
-    Lưu ý khi đối chiếu với bản Keras:
-      - Keras padding='same' + kernel 3x3  ==  PyTorch padding=1
-      - Keras MaxPooling2D padding='valid' ==  PyTorch MaxPool2d(2,2), 7//2 = 3
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.conv1 = nn.Conv2d(1,  8,  kernel_size=3, padding=1)   #    80
-        self.conv2 = nn.Conv2d(8,  16, kernel_size=3, padding=1)   # 1,168
-        self.conv3 = nn.Conv2d(16, 16, kernel_size=3, padding=1)   # 2,320
-        self.pool  = nn.MaxPool2d(2, 2)
-        self.fc    = nn.Linear(16 * 3 * 3, 10)                     # 1,450
-        self.relu  = nn.ReLU()
-
-    def forward(self, x):
-        x = self.pool(self.relu(self.conv1(x)))   # 28 -> 14
-        x = self.pool(self.relu(self.conv2(x)))   # 14 -> 7
-        x = self.pool(self.relu(self.conv3(x)))   # 7  -> 3
-        x = x.flatten(1)                          # -> 144
-        return self.fc(x)                         # logits, chưa softmax
+# Trước đây hai class được định nghĩa ngay tại đây và bị chép lại ở
+# demo_app.py / error_analysis.py. Nay chỉ còn một bản duy nhất.
+# Vẫn import ra tên cũ nên final_table.py và make_figures.py
+# (đang dùng `from model_comparison import DigitCNN, SmallCNN`) không vỡ.
+from models import DigitCNN, SmallCNN
 
 
 # ------------------------------------------------------------

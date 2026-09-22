@@ -1,6 +1,6 @@
 # ============================================================
 # DEMO THỰC TẾ: Vẽ số trên canvas -> model đoán trực tiếp
-# Dùng lại đúng kiến trúc + trọng số đã train (digit_cnn.pth)
+# Dùng lại đúng kiến trúc + trọng số đã train (models/small_cnn.pth)
 # ============================================================
 #
 # CÁCH DÙNG:
@@ -18,10 +18,12 @@
 #    thấy dữ liệu tỉ lệ như vậy lúc train -> đoán sai dù vẽ rất rõ ràng.
 
 import torch
-import torch.nn as nn
 import numpy as np
 import gradio as gr
 from PIL import Image
+
+# Kiến trúc nạp từ models.py — không chép lại class ở đây nữa.
+from models import SmallCNN
 
 import os
 os.makedirs("models", exist_ok=True)   # noi chua .pth va .onnx
@@ -30,30 +32,12 @@ os.makedirs("figures", exist_ok=True)  # noi chua .png
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# %% [1] KIẾN TRÚC MODEL — PHẢI GIỐNG HỆT LÚC TRAIN
-class DigitCNN(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.conv1 = nn.Conv2d(1, 16, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
-        self.pool  = nn.MaxPool2d(2, 2)
-        self.fc1   = nn.Linear(32 * 7 * 7, 128)
-        self.fc2   = nn.Linear(128, 10)
-        self.relu  = nn.ReLU()
-        self.dropout = nn.Dropout(0.25)
-
-    def forward(self, x):
-        x = self.pool(self.relu(self.conv1(x)))
-        x = self.pool(self.relu(self.conv2(x)))
-        x = x.view(x.size(0), -1)
-        x = self.relu(self.fc1(x))
-        x = self.dropout(x)
-        x = self.fc2(x)
-        return x
-
-model = DigitCNN().to(device)
-model.load_state_dict(torch.load("models/digit_cnn.pth", map_location=device))
-model.eval()  # tắt Dropout, cần dự đoán ổn định
+# %% [1] NẠP MODEL — kiến trúc phải giống hệt lúc train
+# Đổi từ DigitCNN (tuần 1, 206.922 params) sang SmallCNN — kiến trúc đã chốt,
+# 5.018 params, test acc 98,82%. Demo phải chạy đúng model đang bảo vệ.
+model = SmallCNN().to(device)
+model.load_state_dict(torch.load("models/small_cnn.pth", map_location=device))
+model.eval()  # SmallCNN không có Dropout, nhưng vẫn gọi eval() cho đúng thói quen
 
 # %% [2] CHUẨN HÓA GIỐNG HỆT LÚC TRAIN (Normalize MNIST)
 MEAN, STD = 0.1307, 0.3081
@@ -121,7 +105,9 @@ def predict(editor_value):
 
     with torch.no_grad():
         output = model(tensor)                       # logits thô, chưa qua softmax
-        probs = torch.softmax(output, dim=1)[0]       # đổi sang xác suất 0-1 cho từng lớp
+        # softmax CHỈ để hiện xác suất cho người xem. Trên chip bỏ được:
+        # exp đơn điệu tăng nên argmax(softmax(z)) == argmax(z). Xem operators/argmax.md
+        probs = torch.softmax(output, dim=1)[0]
         pred = int(probs.argmax().item())
         confidence = float(probs[pred].item()) * 100
 
@@ -134,7 +120,7 @@ def predict(editor_value):
 with gr.Blocks(title="Nhận diện chữ số viết tay") as demo:
     gr.Markdown("## Demo: Vẽ 1 chữ số (0-9) rồi bấm 'Đoán'")
     gr.Markdown(
-        "Model CNN train trên MNIST, accuracy ~99.2% trên tập test. "
+        "SmallCNN train trên MNIST — 5.018 params, accuracy 98,82% trên tập test. "
         "Vẽ chữ số to, rõ, giữa canvas để có kết quả tốt nhất."
     )
 
