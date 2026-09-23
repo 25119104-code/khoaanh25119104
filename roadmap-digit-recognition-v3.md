@@ -350,11 +350,33 @@ Golden model chỉ có giá trị khi chứng minh được nó khớp với mod
 1. Từ PyTorch: chọn **1 ảnh cố định**, dump tensor đầu ra của từng lớp ra file (`conv1_out.txt`, `pool1_out.txt`, ...).
 2. C đọc cùng ảnh đó, in ra tensor cùng vị trí.
 3. So sai số tuyệt đối lớn nhất giữa 2 bên.
-4. **Ngưỡng:** float32 thì `max_abs_diff < 1e-4` là bình thường. Lệch lớn hơn = sai công thức, không phải sai số làm tròn.
+4. **Ngưỡng — dùng sai số TƯƠNG ĐỐI, không phải tuyệt đối.** 🔄 *(sửa 23/09, có số đo)*
+
+   Đo bằng `study/kiem_linear_vs_conv.py`: cho PyTorch chạy **cùng một phép toán** bằng hai
+   cách (`Linear` qua GEMM và `Conv2d` qua im2col, dùng chung đúng một mảng trọng số):
+
+   | Đo được | Giá trị |
+   |---|---|
+   | Sai lệch tuyệt đối lớn nhất | `2,174e-04` — **vượt ngưỡng 1e-4 cũ** |
+   | Logit lớn nhất | 60,356 |
+   | Sai lệch **tương đối** | `3,603e-06` = **30 lần `eps`** của float32 |
+   | Phần tử lệch quá `1e-4` | 199 / 100.000 (0,199%) |
+   | Ảnh dự đoán khác nhau | **0 / 10.000** |
+
+   Nghĩa là ngưỡng `1e-4` tuyệt đối **không đạt được kể cả khi công thức đúng 100%** — vì sai
+   số tuyệt đối tỉ lệ với độ lớn giá trị, mà logit ở lớp cuối lên tới 60. Bắt golden model C
+   khớp PyTorch ở ngưỡng đó là tự tạo ra một "bug" không tồn tại.
+
+   **Tiêu chí thay thế, cả hai phải đạt:**
+   - Sai số **tương đối** `max|a−b| / max|a|` dưới khoảng `1e-5`, tức vài chục lần `eps`.
+   - Số ảnh dự đoán khác nhau trên 10.000 ảnh test = **0**.
+
+   Lệch tương đối lớn hơn hẳn mức đó mới là sai công thức. Lưu ý ngưỡng tương đối phải tính
+   theo từng lớp: lớp đầu giá trị nhỏ, lớp cuối giá trị lớn.
 5. Debug theo thứ tự `Conv1 → ReLU → Pool1 → ... → FC cuối`. **Dừng ở lớp đầu tiên lệch** — các lớp sau lệch là hệ quả, sửa chúng vô nghĩa.
 6. Chỉ khi cả chuỗi khớp mới chạy toàn bộ 10.000 ảnh test và so accuracy.
 
-**Với bản fixed-point (Phase 2E):** ngưỡng `1e-4` không dùng được, sai số lượng tử hoá lớn hơn thế nhiều. Thay bằng: so **bản int8 với bản float32 của chính mình**, tiêu chí là số ảnh dự đoán lệch trên 10.000 ảnh test, không phải sai số tensor.
+**Với bản fixed-point (Phase 2E):** ngay cả ngưỡng tương đối ở trên cũng không dùng được, sai số lượng tử hoá lớn hơn thế nhiều. Thay bằng: so **bản int8 với bản float32 của chính mình**, tiêu chí là số ảnh dự đoán lệch trên 10.000 ảnh test, không phải sai số tensor.
 
 3 lỗi hay gặp nhất khi port sang C, theo thứ tự tần suất: sai thứ tự chiều tensor → sai padding → quên normalize (mean/std) ở đầu vào.
 
@@ -427,9 +449,10 @@ Golden model chỉ có giá trị khi chứng minh được nó khớp với mod
    chia khác hẳn. Đây giờ là câu quyết định lịch, thay chỗ câu 1 cũ. Xem rủi ro số 7.
 2. **Board FPGA mục tiêu là gì?** Chưa chặn việc gì lúc này (quantization đã hoãn), nhưng
    quyết định bit-width khi thật sự bước sang Phase 2E.
-3. **Golden model C cần verify tới mức nào để coi là đạt?** So từng lớp với PyTorch ở ngưỡng
-   `1e-4`, hay chỉ cần accuracy khớp trên 10.000 ảnh test? Tiêu chí này quyết định khi nào
-   được dừng.
+3. **Golden model C cần verify tới mức nào để coi là đạt?** Em đã đo và thấy ngưỡng `1e-4`
+   tuyệt đối không dùng được (mục 6 điểm 4 — chính PyTorch tự lệch với mình `2,174e-04`).
+   Em đề xuất tiêu chí: sai số **tương đối** dưới `1e-5` theo từng lớp, **và** 0 ảnh dự đoán
+   khác nhau trên 10.000 ảnh test. Nhờ Thầy xác nhận mức này có đủ chặt không.
 
 ---
 
