@@ -29,7 +29,7 @@ Ví dụ với `16 × 3 × 3` (H = W = 3):
 | (c=0, y=0, x=0) | 0 + 0 + 0 | 0 |
 | (c=0, y=2, x=2) | 0 + 6 + 2 | 8 |
 | (c=1, y=0, x=0) | 9 + 0 + 0 | 9 |
-| (c=5, y=1, x=2) | 45 + 3 + 2 | **47** |
+| (c=5, y=1, x=2) | 45 + 3 + 2 | **50** |
 | (c=15, y=2, x=2) | 135 + 6 + 2 | 143 |
 
 Keras xếp theo **NHWC**. Cùng phần tử `(c=5, y=1, x=2)` sẽ nằm ở:
@@ -38,7 +38,7 @@ Keras xếp theo **NHWC**. Cùng phần tử `(c=5, y=1, x=2)` sẽ nằm ở:
 y × (W × C) + x × C + c  =  1×48 + 2×16 + 5  =  85
 ```
 
-**47 so với 85.** Ghi nhớ con số này — mục 6 sẽ dùng lại.
+**50 so với 85.** Cùng một phần tử, hai layout, hai chỉ số hoàn toàn khác nhau — đó là toàn bộ nội dung của bẫy ở mục 6.
 
 ## 3. Mã giả
 
@@ -90,5 +90,72 @@ Với khối `16 × 3 × 3`, làm trên giấy:
 
 1. Phần tử `(c=9, y=2, x=0)` nằm ở chỉ số nào sau flatten?
 2. Ngược lại: chỉ số phẳng **100** ứng với `(c, y, x)` nào? (chia lấy nguyên và lấy dư)
-3. Nếu port nhầm sang layout NHWC, chỉ số 47 sẽ chứa phần tử `(c, y, x)` nào thay vì `(5, 1, 2)`?
+3. Nếu port nhầm sang layout NHWC, chỉ số 47 sẽ chứa phần tử `(c, y, x)` nào thay vì `(5, 0, 2)`?
 4. `DigitCNN` vào FC với 1.568 phần tử, `SmallCNN` với 144. Tỉ lệ 10,9 lần đó đến từ đâu — bao nhiêu phần do bớt kênh, bao nhiêu phần do thêm một lần pool?
+
+---
+
+### Đáp án
+
+#### Câu 1 — `(c=9, y=2, x=0)` nằm ở chỉ số nào
+
+```
+flat_idx = c×(H×W) + y×W + x = 9×9 + 2×3 + 0 = 81 + 6 + 0 = 87
+```
+
+#### Câu 2 — Chỉ số phẳng 100 ứng với `(c, y, x)` nào
+
+Giải ngược bằng chia lấy nguyên và lấy dư:
+
+```
+c = 100 ÷ 9 = 11        dư r = 100 − 99 = 1
+y = 1 ÷ 3   = 0
+x = 1 mod 3 = 1
+```
+
+**`(c=11, y=0, x=1)`.** Kiểm ngược: `11×9 + 0×3 + 1 = 100` ✓.
+
+#### Câu 3 — Chỉ số 47 đọc nhầm theo NHWC
+
+Trước hết, chỉ số 47 **thật sự** là phần tử nào theo NCHW:
+
+```
+c = 47 ÷ 9 = 5          dư 47 − 45 = 2
+y = 2 ÷ 3  = 0
+x = 2 mod 3 = 2
+→ (c=5, y=0, x=2)
+```
+
+Nếu port nhầm và đọc cùng chỉ số 47 theo công thức NHWC `y×(W×C) + x×C + c` (với `W=3, C=16`):
+
+```
+y = 47 ÷ 48  = 0        dư 47
+x = 47 ÷ 16  = 2
+c = 47 mod 16 = 15
+→ hiểu nhầm thành (c=15, y=0, x=2)
+```
+
+Cùng một ô nhớ, hai cách hiểu: **kênh 5 thành kênh 15**. Ô nhớ đọc đúng, nhãn gán sai, nên
+mỗi trọng số của `fc` nhân với sai giá trị. Chương trình **không crash**, chỉ ra số sai —
+đúng loại bẫy ở mục 6.
+
+#### Câu 4 — Tỉ lệ 10,9 lần đến từ đâu
+
+```
+DigitCNN: 32 kênh × 7×7 = 1.568   (2 lần pool: 28 → 14 → 7)
+SmallCNN: 16 kênh × 3×3 =   144   (3 lần pool: 28 → 14 → 7 → 3)
+```
+
+Tách riêng từng nguyên nhân bằng cách đổi lần lượt:
+
+| Bước | Kết quả | Hệ số |
+|---|---|---|
+| Chỉ bớt kênh 32 → 16, giữ 7×7 | 16×7×7 = 784 | **2 lần** |
+| Từ 784, thêm 1 lần pool (7×7 → 3×3) | 16×3×3 = 144 | **5,44 lần** |
+| | | **tích ≈ 10,9** |
+
+**Phần đóng góp lớn hơn là thêm một lần pool (5,44×), không phải bớt kênh (2×)** — vì pool
+tác động lên **cả hai** chiều không gian cùng lúc, còn bớt kênh chỉ tác động một chiều.
+
+Chú ý con số 5,44 chứ không phải 4: `7×7 = 49` xuống `3×3 = 9` là chia 5,44, vì `floor` cắt
+hàng và cột cuối. Đây đúng con số đã gặp ở `relu.md` khi đổi thứ tự `relu` ↔ `maxpool`.

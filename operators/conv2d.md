@@ -109,3 +109,85 @@ Làm trên giấy, không chạy code:
 1. Với `conv1` của SmallCNN (`IN_CH=1, OUT_CH=8, K=3, PAD=1, STRIDE=1`, ảnh 28×28): vòng lặp trong cùng chạy **tổng cộng bao nhiêu lần**? So với con số MAC ở mục 4.
 2. Tính `output[0][0][0]` cần bao nhiêu phép nhân? Trong số đó bao nhiêu phép rơi vào vùng padding (bị bỏ qua)?
 3. Nếu đổi `PAD` từ 1 xuống 0, `H_out` của `conv1` thành bao nhiêu? Shape trước `flatten` đổi thế nào? `fc` còn bao nhiêu params?
+
+---
+
+### Đáp án
+
+#### Câu 1 — Vòng lặp trong cùng chạy bao nhiêu lần
+
+```
+số lần lặp = OUT_CH × OUT_H × OUT_W × IN_CH × K × K
+           = 8 × 28 × 28 × 1 × 3 × 3
+           = 56.448
+```
+
+Bằng **đúng** con số MAC ở mục 4. Nhưng hai con số đó **không cùng nghĩa**, và đây mới là
+phần đáng học:
+
+| | Giá trị |
+|---|---|
+| Số lần thân vòng lặp được vào | 56.448 |
+| Số phép nhân **thật sự chạy** | **53.792** |
+| Số lần bị lệnh kiểm biên bỏ qua | 2.656 (**4,71%**) |
+
+Chênh lệch là các vị trí rơi vào vùng padding. Công thức `k×k×in×out×H_out×W_out` ở mục 4
+đếm cả những vị trí đó, nên nó là **cận trên**, không phải số phép nhân thật.
+
+Kiểm chéo bằng cách đếm ngược — mỗi pixel đầu vào được bao nhiêu cửa sổ dùng tới:
+
+```
+pixel trong lòng ảnh (26×26 = 676) × 9 cửa sổ = 6.084
+pixel mép không phải góc (104)     × 6 cửa sổ =   624
+pixel góc (4)                      × 4 cửa sổ =    16
+                                        tổng  = 6.724 phép nhân / cặp (in_ch, out_ch)
+6.724 × 1 × 8 = 53.792  ✓ khớp
+```
+
+**Hệ quả cho FPGA:** nếu thiết kế phần cứng theo con số 56.448 thì thừa 4,71% chu kỳ cho
+những phép nhân với 0. Cách tránh: xử lý riêng viền ảnh thay vì kiểm biên trong vòng lặp.
+
+#### Câu 2 — `output[0][0][0]`
+
+Đây là góc trên trái, vị trí khắc nghiệt nhất. Cửa sổ 3×3 trải trên `ih, iw ∈ {−1, 0, 1}`:
+
+```
+      iw=-1   iw=0   iw=1
+ih=-1   ✗      ✗      ✗        ✗ = ngoài ảnh (padding)
+ih= 0   ✗      ✓      ✓        ✓ = pixel thật
+ih= 1   ✗      ✓      ✓
+```
+
+**9 vị trí cửa sổ, chỉ 4 phép nhân thật, 5 rơi vào padding.** Tức hơn một nửa số lần lặp ở
+ô này là vô ích.
+
+Bốn góc đều như vậy (5 phép bỏ), các ô mép không phải góc bỏ 3 phép, ô trong lòng ảnh
+không bỏ phép nào. Cộng lại: `4×5 + 104×3 = 332` phép bỏ cho mỗi cặp `(in_ch, out_ch)` —
+đúng con số ở Câu 1.
+
+#### Câu 3 — Đổi `PAD` của `conv1` từ 1 xuống 0
+
+```
+H_out của conv1 = floor((28 + 2×0 − 3) / 1) + 1 = 26
+```
+
+Chuỗi shape sau đó (`conv2`, `conv3` vẫn `PAD=1`):
+
+| Bước | `PAD=1` (hiện tại) | `PAD=0` ở riêng `conv1` |
+|---|---|---|
+| conv1 | 8 × 28 × 28 | 8 × **26** × 26 |
+| pool | 8 × 14 × 14 | 8 × **13** × 13 |
+| conv2 | 16 × 14 × 14 | 16 × **13** × 13 |
+| pool | 16 × 7 × 7 | 16 × **6** × 6 |
+| conv3 | 16 × 7 × 7 | 16 × **6** × 6 |
+| pool | 16 × 3 × 3 | 16 × **3** × 3 |
+| **flatten** | **144** | **144 — không đổi** |
+| **`fc` params** | **1.450** | **1.450 — không đổi** |
+
+**Kết quả ngược trực giác:** kích thước trung gian đổi ở cả 5 bước đầu, nhưng tới `flatten`
+thì quay về đúng 144, `fc` không đổi một tham số nào, tổng model vẫn 5.018.
+
+Lý do: `floor` **không tuyến tính**. Qua ba lần pool, chênh lệch nhỏ ở đầu bị `floor` nuốt
+mất — `13` và `14` đều dẫn về cùng một kết quả sau khi tiếp tục chia đôi. Bài học: **không
+được suy diễn tỉ lệ input → output, phải tính lại từng bước.** Phần này đã ghi vào Word
+bước 4 mục 6.4.

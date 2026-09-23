@@ -100,3 +100,99 @@ Làm trên giấy:
 2. Với int8, tính giá trị tuyệt đối lớn nhất mà accumulator của `fc` có thể đạt. Cần tối thiểu bao nhiêu bit?
 3. `fc1` của `DigitCNN` (1568 → 128): mỗi trọng số được dùng lại bao nhiêu lần? So với `conv2` của `SmallCNN`, chênh bao nhiêu lần?
 4. Nếu thay `fc` bằng một `Conv2d(16 → 10, kernel 3, padding 0)` trên feature map 3×3, số params là bao nhiêu? Kết quả có khác `fc` không — vì sao?
+
+---
+
+### Đáp án
+
+#### Câu 1 — `in_features` tối đa để `fc` không quá 1.000 tham số
+
+```
+params = in_features × 10 + 10 ≤ 1.000
+         in_features × 10      ≤   990
+         in_features           ≤    99
+```
+
+**Tối đa 99.** Kiểm: `99×10+10 = 1.000` ✓, `100×10+10 = 1.010` ✗.
+
+Với 16 kênh: `16 × H × W ≤ 99` → `H × W ≤ 6,19`.
+
+| Spatial | `in_features` | `fc` params | Đạt? |
+|---|---|---|---|
+| 3×3 (hiện tại) | 144 | 1.450 | ✗ |
+| **2×2** | **64** | **650** | ✓ |
+
+**Phải xuống 2×2** — tức cần thêm một lần giảm kích thước nữa so với kiến trúc hiện tại.
+
+#### Câu 2 — Accumulator int8 của `fc` cần bao nhiêu bit
+
+```
+mỗi tích tối đa:   127 × 127         =     16.129
+cộng dồn 144 lần:  144 × 16.129      =  2.322.576
+```
+
+```
+2²¹ = 2.097.152 < 2.322.576   → 21 bit chưa đủ
+2²² = 4.194.304 > 2.322.576   → 22 bit đủ phần giá trị
++ 1 bit dấu (accumulator có thể âm)
+                              → 23 bit
+```
+
+**Cần tối thiểu 23 bit.** Không có kiểu 23-bit nên trong C phải dùng **`int32_t`**.
+`int16_t` (trần 32.767) tràn từ rất sớm — chỉ cần 3 tích cùng dấu là vượt.
+
+Trên FPGA thì khác: ở đó **chọn đúng 23 bit được**, không phải làm tròn lên 32. Tiết kiệm
+9 bit trên mỗi thanh ghi accumulator.
+
+#### Câu 3 — Mỗi trọng số được dùng lại bao nhiêu lần
+
+`fc1` là lớp `Linear` — không có chiều không gian để trượt, nên **mỗi trọng số dùng đúng 1 lần**.
+
+```
+fc1 (DigitCNN)   : 1 lần
+conv2 (SmallCNN) : H_out × W_out = 14 × 14 = 196 lần
+```
+
+**Chênh 196 lần.** Đây chính là lý do `fc1` nghẽn băng thông: 200.704 trọng số, mỗi cái đọc
+từ bộ nhớ một lần rồi bỏ, sinh ra đúng một phép nhân. Đọc rất nhiều byte để làm rất ít việc.
+Thêm DSP không cứu được, phải tăng băng thông bộ nhớ.
+
+#### Câu 4 — Thay `fc` bằng `Conv2d(16 → 10, kernel 3, padding 0)`
+
+```
+params = k×k×in_ch×out_ch + out_ch = 3×3×16×10 + 10 = 1.440 + 10 = 1.450
+```
+
+**Bằng đúng `fc`** (`144×10 + 10 = 1.450`). MAC cũng bằng nhau (1.440). Lý do:
+
+```
+H_out = floor((3 + 2×0 − 3) / 1) + 1 = 1
+```
+
+Với `kernel = 3` trên feature map 3×3 và `padding = 0`, cửa sổ chỉ đặt được **đúng một vị
+trí**, phủ trọn feature map, không trượt đi đâu. Tích chập khi cửa sổ không trượt chính là
+phép nhân ma trận của `Linear`. Đầu ra `10×1×1` thay vì `10`, nhưng cùng 10 con số.
+
+**Đổi qua lại không cần train lại:** `fc.weight` có shape `[10, 144]`, conv cần
+`[10, 16, 3, 3]`. Mà `144 = 16×3×3` và `flatten` đánh chỉ số theo NCHW
+(`i = c·9 + h·3 + w`) — đúng bằng thứ tự chiều của conv. Nên chỉ cần
+`conv.weight = fc.weight.view(10, 16, 3, 3)` và copy nguyên bias.
+
+**Có khác không? Có, nhưng chỉ ở mức làm tròn.** Đo bằng `study/kiem_linear_vs_conv.py` trên
+10.000 ảnh test:
+
+| Đo được | Giá trị |
+|---|---|
+| Sai lệch tuyệt đối lớn nhất | `2,174e-04` |
+| Logit lớn nhất | 60,356 |
+| **Sai lệch tương đối** | **`3,603e-06`** = 30 lần `eps` của float32 |
+| Ảnh dự đoán khác nhau | **0 / 10.000** |
+
+Tương đương về mặt **toán học**, nhưng **không bit-exact**: PyTorch chạy `Linear` bằng phép
+nhân ma trận còn `Conv2d` qua im2col, cộng dồn 144 số hạng theo hai thứ tự khác nhau thì
+float32 làm tròn khác nhau. Chữ "giống hệt từng bit" để dành cho hai chỗ thật sự bit-exact:
+bỏ softmax và đổi thứ tự `relu` ↔ `maxpool`.
+
+**Kết luận: giữ `Linear`.** Không tiết kiệm được tham số hay phép tính nào, trong khi golden
+model C sẽ phải viết 6 vòng lặp thay vì 2. Phương án conv chỉ có giá trị ở giai đoạn thiết
+kế RTL, nếu muốn một khối phần cứng duy nhất xử lý cả conv lẫn fc.

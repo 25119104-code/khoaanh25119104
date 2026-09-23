@@ -113,3 +113,79 @@ May mắn là kiến trúc chọn **max** chứ không phải average. Average 2
 1. `MaxPool2d(2,2)` trên ảnh 13×13 ra bao nhiêu? Bao nhiêu hàng/cột bị vứt?
 2. Trong SmallCNN, tổng cộng bao nhiêu phép **so sánh** ở cả 3 lần pool? (gợi ý: mỗi ô 2×2 cần 3 phép so sánh)
 3. Nếu đổi cả 3 pool sang `ceil_mode=True`, chuỗi shape thành gì? `flatten` ra bao nhiêu? `fc` bao nhiêu params? Tổng model bao nhiêu?
+
+---
+
+### Đáp án
+
+#### Câu 1 — `MaxPool2d(2,2)` trên ảnh 13×13
+
+```
+H_out = floor((H_in − K) / STRIDE) + 1
+      = floor((13 − 2) / 2) + 1
+      = floor(5,5) + 1
+      = 5 + 1 = 6
+```
+
+**13×13 → 6×6.**
+
+Bao nhiêu bị vứt: cửa sổ cuối bắt đầu ở chỉ số `(H_out−1) × STRIDE = 10`, phủ tới chỉ số 11.
+Ảnh có chỉ số `0..12`, nên **chỉ số 12 — hàng cuối và cột cuối — không cửa sổ nào chạm tới,
+bị bỏ hoàn toàn.** Mất 13² − 12² = 25 pixel.
+
+#### Câu 2 — Tổng số phép so sánh ở cả 3 lần pool
+
+Trước hết, **vì sao 3 phép chứ không phải 4** cho một ô 2×2:
+
+| Cách viết | Số phép so sánh | Nhận xét |
+|---|---|---|
+| `m = −∞` rồi so cả 4 số | 4 | Phép đầu `a > −∞` **luôn đúng**, không mang thông tin |
+| `m = a` rồi so 3 số còn lại | **3** | Phần tử đầu gán thẳng, không cần so |
+
+Mã giả gốc chọn cách `−∞` vì viết gọn (4 vòng lặp giống hệt nhau, không phải tách riêng phần
+tử đầu). Khi port sang C hoặc RTL mà muốn tiết kiệm thì tách phần tử đầu ra.
+
+```
+số so sánh 1 lớp pool = CH × OUT_H × OUT_W × 3
+
+pool1:  8 × 14 × 14 × 3 = 4.704
+pool2: 16 ×  7 ×  7 × 3 = 2.352
+pool3: 16 ×  3 ×  3 × 3 =   432
+                   tổng = 7.488
+```
+
+#### Câu 3 — Đổi cả 3 pool sang `ceil_mode=True`
+
+Công thức chỉ đổi `floor` thành `ceil`:
+
+```
+H_out = ceil((H_in − K) / STRIDE) + 1
+```
+
+| Lớp pool | Vào | `floor` (hiện tại) | `ceil` | Đổi không? |
+|---|---|---|---|---|
+| pool1 | 28 | `floor(13)+1 = 14` | `ceil(13)+1 = 14` | Không — 26/2 chia hết |
+| pool2 | 14 | `floor(6)+1 = 7` | `ceil(6)+1 = 7` | Không — 12/2 chia hết |
+| pool3 | **7** | `floor(2,5)+1 = 3` | `ceil(2,5)+1 = **4**` | **Có** |
+
+Chỉ `pool3` đổi, vì chỉ nó có `(H_in − K)` lẻ. Chuỗi shape mới:
+
+```
+1×28×28 → conv1 → 8×28×28 → pool → 8×14×14
+        → conv2 → 16×14×14 → pool → 16×7×7
+        → conv3 → 16×7×7   → pool → 16×4×4   ← chỗ duy nhất khác
+```
+
+| | Hiện tại | `ceil_mode=True` |
+|---|---|---|
+| Shape trước `flatten` | 16×3×3 | 16×4×4 |
+| `flatten` | 144 | **256** |
+| `fc` params | 1.450 | **2.570** |
+| **Tổng model** | **5.018** | **6.138** |
+
+Chỉ `fc` đổi — params của conv không phụ thuộc kích thước ảnh. Tổng: `5.018 − 1.450 + 2.570 = 6.138`.
+
+> **Đánh đổi:** giữ được hàng/cột cuối (không vứt thông tin), nhưng tốn thêm **1.120 tham số**,
+> tức tăng 22%. Với MNIST thì chữ số nằm gọn giữa ảnh nên hàng/cột biên gần như trống —
+> không đáng. Ngoài ra `ceil_mode` buộc cửa sổ cuối thò ra ngoài ảnh, trong C phải xử lý
+> vùng thiếu đó, thêm một nhánh điều kiện nữa.
