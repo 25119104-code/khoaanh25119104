@@ -367,12 +367,44 @@ Golden model chỉ có giá trị khi chứng minh được nó khớp với mod
    số tuyệt đối tỉ lệ với độ lớn giá trị, mà logit ở lớp cuối lên tới 60. Bắt golden model C
    khớp PyTorch ở ngưỡng đó là tự tạo ra một "bug" không tồn tại.
 
-   **Tiêu chí thay thế, cả hai phải đạt:**
+   **Tiêu chí thay thế, cả ba phải đạt:**
    - Sai số **tương đối** `max|a−b| / max|a|` dưới khoảng `1e-5`, tức vài chục lần `eps`.
    - Số ảnh dự đoán khác nhau trên 10.000 ảnh test = **0**.
+   - Sai số tuyệt đối trên logit phải nhỏ hơn hẳn **biên an toàn** ở dưới.
 
    Lệch tương đối lớn hơn hẳn mức đó mới là sai công thức. Lưu ý ngưỡng tương đối phải tính
    theo từng lớp: lớp đầu giá trị nhỏ, lớp cuối giá trị lớn.
+
+### Biên an toàn của lớp cuối — suy từ dữ liệu thật, không phải ngưỡng đoán
+
+Đo bằng `study/dem_hoa_logit.py` trên `small_cnn.pth`, 10.000 ảnh test:
+
+| Đại lượng | Giá trị |
+|---|---|
+| Khoảng cách nhỏ nhất giữa **2 logit cao nhất** (float32) | **`1,900e-02`** |
+| Cũng vậy, sau int8 weight-only | `7,344e-03` (hẹp lại 2,6 lần) |
+| Sai số Linear ↔ Conv2d đo được | `2,174e-04` |
+| Dư địa | **87 lần** |
+
+Đây là lời giải thích cho kết quả ở `study/kiem_linear_vs_conv.py`: lệch `2,17e-04` mà
+**0/10.000 ảnh đoán khác nhau**, vì nhiễu nhỏ hơn khoảng cách hẹp nhất 87 lần nên không đủ
+sức lật một dự đoán nào.
+
+**Quy ra tiêu chí cho golden model C:**
+
+| Sai số trên logit | Ý nghĩa |
+|---|---|
+| < `1e-03` | An toàn tuyệt đối — còn dư 19 lần so với biên |
+| `1e-03` → `1,9e-02` | Vùng xám, phải kiểm từng ảnh |
+| > `1,9e-02` | Có thể lật dự đoán của ảnh sát biên nhất |
+
+Hai cảnh báo:
+- `1,9e-02` là số của **riêng checkpoint này**. Train lại là phải chạy lại
+  `study/dem_hoa_logit.py` để đo lại biên.
+- Lượng tử hoá **cả đường inference** (không phải weight-only) làm logit thành số nguyên và
+  sinh hoà thật: mô phỏng ép logit về lưới 8-bit cho **7/10.000 ảnh** có hai logit bằng nhau.
+  Khi đó `>` và `>=` trong `argmax` cho kết quả khác nhau ở đúng 7 ảnh đó — thêm một lý do
+  phải viết `>` chứ không phải `>=`.
 5. Debug theo thứ tự `Conv1 → ReLU → Pool1 → ... → FC cuối`. **Dừng ở lớp đầu tiên lệch** — các lớp sau lệch là hệ quả, sửa chúng vô nghĩa.
 6. Chỉ khi cả chuỗi khớp mới chạy toàn bộ 10.000 ảnh test và so accuracy.
 
