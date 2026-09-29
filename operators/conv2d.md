@@ -77,6 +77,30 @@ conv2d(input[IN_CH][IN_H][IN_W],
 
 Hai dòng quan trọng nhất là `iy` và `ix`: chúng ánh xạ toạ độ đầu ra về toạ độ đầu vào. Dấu `− PAD` là chỗ dễ sai nhất.
 
+### Tính 1 điểm output — phần ruột của 6 vòng lặp
+
+Cố định `oc, oy, ox` thì chỉ còn 3 vòng trong:
+
+```
+out[oc][oy][ox] = bias[oc] + Σ_ic Σ_ky Σ_kx  in[ic][oy−PAD+ky][ox−PAD+kx] · w[oc][ic][ky][kx]
+```
+
+| Lớp | Số MAC cho 1 điểm | Ghi chú |
+|---|---|---|
+| `conv1` | 1 × 3 × 3 = **9** | 1 kênh vào |
+| `conv2` | 8 × 3 × 3 = **72** | 8 lát 3×3 trên 8 kênh vào |
+| `conv3` | 16 × 3 × 3 = **144** | |
+
+**Chỗ hay hiểu sai:** mỗi kênh vào **không** cho ra một output riêng. Cả 72 tích của `conv2`
+dồn vào **một accumulator**, cộng thêm bias, ra **một số duy nhất**. Kênh ra khác (`oc` khác)
+dùng bộ kernel khác trên **cùng** cửa sổ vào.
+
+Hình có số thật (sinh bằng `make_conv_figures.py`, khớp PyTorch):
+
+- `figures/conv_1diem_conv1.png`: 9 pixel × 9 trọng số → cộng → + bias
+- `figures/conv_1diem_conv2.png`: 8 kênh × 9 → 8 tổng con → cộng → + bias → 1 số
+- `figures/conv_padding_goc.png`: điểm ở góc, 5/9 tap rơi vào vùng đệm 0
+
 ## 4. Áp dụng vào `SmallCNN`
 
 | Lớp | in→out | H_in | H_out | Params | MAC |
@@ -93,6 +117,34 @@ Hai dòng quan trọng nhất là `iy` và `ix`: chúng ánh xạ toạ độ đ
 
 Kernel 3×3 đặc biệt thân thiện: chỉ cần 9 bộ nhân và line-buffer 2 hàng. Kernel 7×7 cần 49 bộ nhân và buffer 6 hàng.
 
+### `if` kiểm biên hay đệm 0? (Thầy góp ý 23/09)
+
+Mã giả ở mục 3 dùng `if` để **bỏ** các tap rơi vào vùng padding. Trên CPU cách đó tiết kiệm được
+phép nhân. **Trên FPGA thì ngược lại:**
+
+| | Có `if` (bỏ tap ở biên) | Đệm 0, luôn đủ 9 tap |
+|---|---|---|
+| Số MAC conv / ảnh | 351.008 | 395.136 (+11,2%) |
+| Thời gian trên FPGA | Không nhanh hơn: 9 bộ nhân song song vẫn mất 1 chu kỳ, bỏ 5 thì 5 bộ ngồi không | 1 chu kỳ / điểm, đều |
+| Mạch thêm | Bộ so sánh `0 ≤ iy < H`, `0 ≤ ix < W` cho từng tap + MUX → tốn LUT | Không. Line buffer đẩy số 0 ra ở biên |
+| Luồng điều khiển | Không đều theo vị trí → pipeline và timing khó hơn | Mọi vị trí giống hệt nhau |
+
+Phần phí theo lớp (đo bằng `inference_python.py`, khớp tính tay):
+
+| Lớp | Đủ 9 tap | Bỏ padding | Phí |
+|---|---|---|---|
+| `conv1` 28×28 | 56.448 | 53.792 | 4,7% |
+| `conv2` 14×14 | 225.792 | 204.800 | 9,3% |
+| `conv3` 7×7 | 112.896 | 92.416 | 18,1% |
+| **Tổng** | **395.136** | **351.008** | **11,2%** |
+
+**Kết luận:** giữ đủ 9 phép, đệm 0. Hai bản cho kết quả **giống hệt** vì cộng `0 × w` không
+đổi tổng. Con số **414.265 phép/ảnh** trong `README.md` đã đếm theo kiểu đủ 9 tap
+(395.136 MAC conv + 10.192 ReLU + 7.488 so sánh pool + 1.440 MAC fc + 9 so sánh argmax).
+
+**Bài học:** đếm số phép là thước đo **phần mềm**. Phần cứng đo bằng **chu kỳ, diện tích (LUT/DSP),
+timing**. Giảm phép toán mà làm luồng điều khiển rẽ nhánh thì có thể lỗ.
+
 ## 6. Chú ý khi port sang C
 
 | Bẫy | Chi tiết |
@@ -101,6 +153,7 @@ Kernel 3×3 đặc biệt thân thiện: chỉ cần 9 bộ nhân và line-buffe
 | **Khởi tạo `acc`** | Bằng `bias[oc]`, không phải 0. Quên thì lệch đúng bằng bias, rất khó nhìn ra |
 | **Dấu của PAD** | `iy = oy*STRIDE − PAD + ky`. Dấu trừ. Viết cộng thì ảnh bị dịch |
 | **Biên** | Ngoài ảnh coi như 0, không phải lặp pixel mép |
+| **Giá trị đệm** | Đệm **0 sau chuẩn hoá**, không phải màu nền. Nền MNIST sau chuẩn hoá là −0,4242, khác 0. PyTorch đệm 0 sau `Normalize` nên C cũng phải đệm 0.0 |
 
 ## 7. Tự kiểm tra
 

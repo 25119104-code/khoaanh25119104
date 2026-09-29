@@ -4,6 +4,8 @@
 - SV năm 2, Công nghệ Kỹ thuật Máy tính, ĐHCNKT TP.HCM (trước là HCMUTE).
 - Thầy chốt 22/09: **project này chạy trọn flow AI → IC → ES**, mảng nào cũng làm, mục đích là
   để mỗi người tìm ra mảng mình thích rồi mới chuyên sâu. Golden model C **thuộc project này**.
+- Gặp Thầy 23/09: xác nhận **đi full flow** → phải hiểu bản chất thuật toán, vì lên mạch sẽ gặp lại.
+  Thầy: **cứ nhờ AI làm, học dần hiểu dần.** Ghi chú: `docs/ghi-chu-gap-thay-20260923.md`.
 - **Roadmap hiện hành: `roadmap-digit-recognition-v3.md`.** v1/v2 đã lỗi thời, chỉ đọc v3.
 - Framework: PyTorch. Thầy: thư viện nào cũng được, khuyến khích tự mày mò, không cần bám đúng
   cách Thầy làm — tiêu chí là **có cố gắng và có kết quả**.
@@ -18,12 +20,14 @@
 5. **Params phải giảm.** (đã làm — ít hơn 41,2×)
 
 ## Cấu trúc thư mục
-Gốc có 7 file `.py` + roadmap v3 + `.gitignore`. Còn lại nằm trong thư mục con:
+Gốc có 11 file `.py` + roadmap v3 + `.gitignore`. Còn lại nằm trong thư mục con:
 
 | Thư mục | Chứa |
 |---|---|
 | `models/` | `digit_cnn.pth` (tuần 1, đóng băng), `digit_cnn_val.pth`, `small_cnn.pth`, ONNX |
-| `figures/` | 8 hình phân tích + sơ đồ Netron |
+| `figures/` | 8 hình phân tích + sơ đồ Netron + 3 hình `conv_*.png` (tính 1 điểm conv, vùng đệm) |
+| `params/` | `weights.txt` (4.968) + `biases.txt` (50) + README bảng offset — **sinh tự động, không sửa tay** |
+| `golden/` | Ảnh mẫu + đầu ra PyTorch từng lớp + logit cả test set — chuẩn để so Python/C |
 | `docs/` | slide + 2 file Word nộp Thầy + ghi chú chuẩn bị gặp + file này |
 | `operators/` | README index + 6 file operator (công thức, mã giả, bẫy port C) |
 | `reports/` | report tuần 1, 2, 3 |
@@ -43,9 +47,13 @@ vào `sys.path` + `os.chdir` nên chạy ở đâu cũng được.
 | `make_figures.py` | Sinh 4 hình phân tích + xuất ONNX |
 | `error_analysis.py` | Confusion matrix + accuracy theo lớp. `--model small` (mặc định) hoặc `--model digit` |
 | `demo_app.py` | Demo Gradio vẽ tay, chạy `SmallCNN` |
+| `mnist_io.py` | Đọc MNIST test **từ file raw idx** (không torchvision) + chuẩn hoá giống PyTorch |
+| `export_params.py` | Phase 2B: trích tham số → `params/`, sinh `golden/`. Tự kiểm đọc lại khớp từng bit |
+| `inference_python.py` | Inference **vòng lặp thuần, không PyTorch**, mảng 1 chiều như C. 2 bản conv: `if` và đệm 0. Bản nháp của golden model C |
+| `make_conv_figures.py` | Vẽ 3 hình tính 1 điểm conv bằng số thật |
 | `study/xem_quantization.py` | Chỉ đọc — khảo sát int8/int16/Q1.7 trên checkpoint thật |
 
-## Trạng thái (cập nhật 22/09/2026)
+## Trạng thái (cập nhật 23/09/2026)
 - **Kiến trúc đã CHỐT: `SmallCNN` — 5.018 params, test acc 98,82%.** (DigitCNN cũ: 206.922
   params, 99,05% — giữ làm mốc. Giảm 41,2 lần.)
 - Phase 1 ✅ validation set 50k/10k/10k, checkpoint theo best val acc.
@@ -56,7 +64,9 @@ vào `sys.path` + `os.chdir` nên chạy ở đâu cũng được.
 - ✅ **Word bước 3 hết nợ** — có mục 5 (6 operator, mã giả, 2 chỗ bỏ phép toán, 3 bẫy port C)
   và mục 6.4 (biến thể padding conv1).
 - ⬜ **Phase 2E (quantization) hoãn** — Thầy nói chưa cần.
-- **Tiếp theo: Phase 2B trích tham số → Phase 2D golden model C float32.**
+- ✅ **Phase 2B trích tham số** — 2 file `weights.txt` + `biases.txt` theo ý Thầy, `%.9g`, khớp từng bit.
+- ✅ **Inference Python** — khớp PyTorch từng lớp; 10.000 ảnh: 98,82%, trùng dự đoán 10.000/10.000.
+- **Tiếp theo: Phase 2D golden model C float32**, dịch từ `inference_python.py`, dùng **bản conv đệm 0**.
 
 ## Đường inference — chỉ 6 operator
 ```
@@ -68,6 +78,10 @@ Không softmax, không loss function, không optimizer — chỉ tồn tại lú
 Conv chiếm 95% tính toán nhưng 71% params; `fc` ngược lại (0,3% / 29%).
 
 ## Phát hiện đã chốt — đừng bàn lại từ đầu
+- **FPGA: đệm 0, luôn đủ 9 tap — không dùng `if` bỏ padding** (Thầy góp ý 23/09). 9 bộ nhân song
+  song mất 1 chu kỳ dù bỏ bớt tap; `if` tốn thêm LUT so sánh + MUX. Giá: 395.136 thay vì 351.008
+  MAC conv (+11,2%). Hai bản ra giống hệt. 414.265 phép/ảnh vốn đã đếm theo kiểu đủ 9 tap.
+- **Giá trị đệm = 0 sau chuẩn hoá**, không phải nền ảnh (−0,4242).
 - **Bỏ được softmax trên chip.** `exp` đơn điệu tăng → `argmax(softmax(z)) = argmax(z)`.
   Tiết kiệm 10 `exp()` + 1 phép chia. Giống hệt bit-for-bit, không phải xấp xỉ.
 - **Đổi thứ tự `relu` ↔ `maxpool`** giảm phép ReLU **10.192 → 2.496**, tức **4,08 lần**.
@@ -99,11 +113,11 @@ tương ứng ngay. `operators/*.md` là bản nháp, Word là bản nộp.
 ## Ranh giới phạm vi — đang mở, chờ xác nhận
 THUỘC (chắc chắn): hiểu kiến trúc → thu gọn params → viết operator + mã giả → bỏ/thay phép toán
 khó cho FPGA → xác định model inference → trích tham số → golden model C.
-CHƯA RÕ: sau golden model C còn RTL/Verilog, synthesis, chạy board thật không. Thầy nói "trọn
-flow AI → IC → ES" nhưng chưa nói đi xa tới đâu trong 6 tuần còn lại. **Đây là câu hỏi số 1.**
+23/09: Thầy xác nhận đi full flow. Mức cụ thể (RTL, synthesis, board thật) và lịch cho từng
+bước vẫn nên chốt khi gặp lần tới.
 
 ## Câu hỏi đang chờ Thầy
-1. **"Trọn flow AI → IC → ES" đi xa tới đâu trong project này?** Quyết định lịch 6 tuần còn lại.
+1. ~~Trọn flow đi xa tới đâu~~ → 23/09: đi full flow. Còn hỏi: lịch từng bước sau golden model C.
 2. **Golden model C verify tới mức nào thì coi là đạt?** So từng lớp với PyTorch ở ngưỡng `1e-4`,
    hay chỉ cần accuracy khớp trên 10.000 ảnh test?
 3. Board FPGA mục tiêu là gì? (chưa chặn việc gì lúc này)
