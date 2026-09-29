@@ -28,14 +28,17 @@ Gốc có 11 file `.py` + roadmap v3 + `.gitignore`. Còn lại nằm trong thư
 | `figures/` | 8 hình phân tích + sơ đồ Netron + 3 hình `conv_*.png` (tính 1 điểm conv, vùng đệm) |
 | `params/` | `weights.txt` (4.968) + `biases.txt` (50) + README bảng offset — **sinh tự động, không sửa tay** |
 | `golden/` | Ảnh mẫu + đầu ra PyTorch từng lớp + logit cả test set — chuẩn để so Python/C |
-| `docs/` | slide + 2 file Word nộp Thầy + ghi chú chuẩn bị gặp + file này |
+| `docs/` | slide + 2 file Word nộp Thầy + ghi chú chuẩn bị gặp + ghi chú gặp Thầy + file này |
 | `operators/` | README index + 6 file operator (công thức, mã giả, bẫy port C) |
-| `reports/` | report tuần 1, 2, 3 |
+| `PDF/` | Bản in của `operators/*.md`, sinh bằng `tools/xuat_pdf.py` — sửa `.md` rồi chạy lại |
+| `reports/` | report tuần 1, 2, 3, 4 |
 | `study/` | bài tập tự luyện + script khảo sát, KHÔNG nộp |
+| `tools/` | `xuat_pdf.py` — sinh PDF từ `operators/*.md` |
 | `archive/`, `audio/`, `data/` | roadmap cũ, file NotebookLM, MNIST |
 
 Mọi script đọc/ghi qua `models/...` và `figures/...`. Script trong `study/` tự thêm thư mục gốc
-vào `sys.path` + `os.chdir` nên chạy ở đâu cũng được.
+vào `sys.path` + `os.chdir` nên chạy ở đâu cũng được. Comment và chuỗi in trong code viết
+**tiếng Việt có dấu**.
 
 ## File code
 | File | Vai trò |
@@ -53,7 +56,7 @@ vào `sys.path` + `os.chdir` nên chạy ở đâu cũng được.
 | `make_conv_figures.py` | Vẽ 3 hình tính 1 điểm conv bằng số thật |
 | `study/xem_quantization.py` | Chỉ đọc — khảo sát int8/int16/Q1.7 trên checkpoint thật |
 
-## Trạng thái (cập nhật 23/09/2026)
+## Trạng thái (cập nhật 29/09/2026)
 - **Kiến trúc đã CHỐT: `SmallCNN` — 5.018 params, test acc 98,82%.** (DigitCNN cũ: 206.922
   params, 99,05% — giữ làm mốc. Giảm 41,2 lần.)
 - Phase 1 ✅ validation set 50k/10k/10k, checkpoint theo best val acc.
@@ -66,13 +69,15 @@ vào `sys.path` + `os.chdir` nên chạy ở đâu cũng được.
 - ⬜ **Phase 2E (quantization) hoãn** — Thầy nói chưa cần.
 - ✅ **Phase 2B trích tham số** — 2 file `weights.txt` + `biases.txt` theo ý Thầy, `%.9g`, khớp từng bit.
 - ✅ **Inference Python** — khớp PyTorch từng lớp; 10.000 ảnh: 98,82%, trùng dự đoán 10.000/10.000.
+- ✅ **Report tuần 4** (`reports/report-tuan04-20260930.md`) đã commit. PDF operators đã sinh lại.
 - **Tiếp theo: Phase 2D golden model C float32**, dịch từ `inference_python.py`, dùng **bản conv đệm 0**.
+- Chưa làm: cập nhật Word bước 3 với phần "tính 1 điểm" và "`if` vs đệm 0"; tự tính tay 1 điểm conv1.
 
 ## Đường inference — chỉ 6 operator
-```
-conv2d → relu → maxpool  (×3 lần, kênh 1→8→16→16, spatial 28→14→7→3)
-       → flatten (144) → linear (144→10) → argmax
-```
+
+    conv2d → relu → maxpool  (×3 lần, kênh 1→8→16→16, spatial 28→14→7→3)
+           → flatten (144) → linear (144→10) → argmax
+
 Không softmax, không loss function, không optimizer — chỉ tồn tại lúc train.
 **414.265 phép/ảnh** (còn **406.569** nếu đổi thứ tự relu/pool).
 Conv chiếm 95% tính toán nhưng 71% params; `fc` ngược lại (0,3% / 29%).
@@ -82,6 +87,8 @@ Conv chiếm 95% tính toán nhưng 71% params; `fc` ngược lại (0,3% / 29%)
   song mất 1 chu kỳ dù bỏ bớt tap; `if` tốn thêm LUT so sánh + MUX. Giá: 395.136 thay vì 351.008
   MAC conv (+11,2%). Hai bản ra giống hệt. 414.265 phép/ảnh vốn đã đếm theo kiểu đủ 9 tap.
 - **Giá trị đệm = 0 sau chuẩn hoá**, không phải nền ảnh (−0,4242).
+- **Tính 1 điểm output conv:** `bias[oc] + Σ_ic Σ_ky Σ_kx in·w`. conv1: 9 MAC, conv2: 72, conv3: 144.
+  Mọi kênh vào dồn vào **một accumulator** → một số duy nhất.
 - **Bỏ được softmax trên chip.** `exp` đơn điệu tăng → `argmax(softmax(z)) = argmax(z)`.
   Tiết kiệm 10 `exp()` + 1 phép chia. Giống hệt bit-for-bit, không phải xấp xỉ.
 - **Đổi thứ tự `relu` ↔ `maxpool`** giảm phép ReLU **10.192 → 2.496**, tức **4,08 lần**.
@@ -98,6 +105,7 @@ Conv chiếm 95% tính toán nhưng 71% params; `fc` ngược lại (0,3% / 29%)
   Bắt bằng cách so từng phần tử vector 144, đừng chỉ so accuracy cuối.
 - **Accumulator phải khởi tạo bằng `bias`, không phải 0.** Sai chỗ này lệch đúng bằng bias.
 - **`argmax` phải so sánh chặt (`>`)** để khớp `torch.argmax` khi có logit bằng nhau.
+- Python float64 vs PyTorch float32 lệch ~1e-5 — là độ chính xác, không phải sai thuật toán.
 - Rủi ro Q1.7 (để dành cho lúc thật sự làm quantization): `conv2` có max|w| = 0,9813, trần Q1.7
   là 0,9922 — chỉ 1,1% dư địa. Accumulator `fc` ở int8 phải là int32.
 
@@ -110,17 +118,19 @@ Conv chiếm 95% tính toán nhưng 71% params; `fc` ngược lại (0,3% / 29%)
 Cả 3 tài liệu đã có trong `docs/`. Nguyên tắc: mỗi phase kỹ thuật xong thì cập nhật tài liệu
 tương ứng ngay. `operators/*.md` là bản nháp, Word là bản nộp.
 
-## Ranh giới phạm vi — đang mở, chờ xác nhận
+## Ranh giới phạm vi
 THUỘC (chắc chắn): hiểu kiến trúc → thu gọn params → viết operator + mã giả → bỏ/thay phép toán
 khó cho FPGA → xác định model inference → trích tham số → golden model C.
 23/09: Thầy xác nhận đi full flow. Mức cụ thể (RTL, synthesis, board thật) và lịch cho từng
 bước vẫn nên chốt khi gặp lần tới.
 
-## Câu hỏi đang chờ Thầy
+## Câu hỏi đang chờ Thầy (đã đưa vào report tuần 4)
 1. ~~Trọn flow đi xa tới đâu~~ → 23/09: đi full flow. Còn hỏi: lịch từng bước sau golden model C.
-2. **Golden model C verify tới mức nào thì coi là đạt?** So từng lớp với PyTorch ở ngưỡng `1e-4`,
-   hay chỉ cần accuracy khớp trên 10.000 ảnh test?
-3. Board FPGA mục tiêu là gì? (chưa chặn việc gì lúc này)
+2. **Golden model C verify tới mức nào thì coi là đạt?** Ngưỡng tuyệt đối `1e-4`, sai số tương đối,
+   hay chỉ cần trùng dự đoán trên 10.000 ảnh test?
+3. **Chuẩn hoá ảnh làm ở đâu?** PC xử lý trước rồi gửi float vào, hay chip nhận `uint8` và tự làm
+   phép `a·x + b`?
+4. Board FPGA mục tiêu là gì? (chưa chặn việc gì lúc này)
 
 ## Cách Claude hỗ trợ
 1. Xác định đang ở phase nào theo v3 trước khi trả lời.
@@ -137,6 +147,8 @@ bước vẫn nên chốt khi gặp lần tới.
 9. Trước khi mình nộp gì cho Thầy, kiểm xem tài liệu có đang báo **thiếu** việc đã làm không.
 10. **Làm xong thì ghi thẳng vào thư mục project**, đừng chỉ gửi file vào chat — đã có lần hai
     bản Word lệch nhau vì việc này. Không chạy hai phiên Claude song song trên cùng repo.
+11. Code và tài liệu viết **tiếng Việt có dấu** — kể cả comment, chuỗi in, README sinh tự động.
+12. Không để lại `.git/index.lock` — chỉ chạy `git --no-optional-locks status`, không tự commit.
 
 ## Ràng buộc học thuật
 - Nộp tiến độ thứ Tư hàng tuần. Không có tiến độ → bị loại khỏi nhóm.
@@ -148,6 +160,8 @@ bước vẫn nên chốt khi gặp lần tới.
 - `error_analysis.py --model small` và `make_figures.py` cùng ghi ra `figures/*_small.png`.
   Cùng model, cùng dữ liệu, chỉ khác tiêu đề hình — chạy script nào sau thì theo script đó.
 - `CrossEntropyLoss` không nằm trên đường inference → không cần viết operator.
+- Hình cũ trong `figures/` do `make_figures.py` sinh vẫn có tiêu đề không dấu, chạy lại là có dấu.
+- Mỗi lần chạy `tools/xuat_pdf.py`, cả 7 PDF đều hiện "modified" vì Chrome ghi ngày giờ mới vào file.
 
 ## Trả lời
 Tiếng Việt, có cấu trúc, bước cụ thể. Ngắn khi hỏi nhanh, đầy đủ khi kỹ thuật/học thuật.
