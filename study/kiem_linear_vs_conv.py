@@ -21,7 +21,7 @@ import torch.nn as nn
 # đang đứng. Phải tự thêm thư mục gốc project vào thì mới import được.
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-os.chdir(ROOT)   # model_comparison dung duong dan tuong doi: ./data, models/
+os.chdir(ROOT)   # model_comparison dùng đường dẫn tương đối: ./data, models/
 
 from model_comparison import SmallCNN, test_loader, device
 
@@ -35,17 +35,17 @@ model.eval()
 
 fc = model.fc                       # Linear(144, 10)
 OUT, IN = fc.weight.shape           # [10, 144]
-C, H, W = 16, 3, 3                  # feature map ngay truoc flatten
+C, H, W = 16, 3, 3                  # feature map ngay trước flatten
 assert IN == C * H * W, f"{IN} != {C}*{H}*{W}"
 
 
 # ------------------------------------------------------------
 # [2] Dựng lớp conv tương đương — KHÔNG train lại một epoch nào
 # ------------------------------------------------------------
-# fc.weight  co shape [10, 144]
-# conv.weight can shape [10, 16, 3, 3]
-# 144 = 16*3*3, va flatten danh chi so theo NCHW: i = c*(H*W) + h*W + w
-# -> dung bang thu tu chieu cua conv.weight, nen .view() la du.
+# fc.weight  có shape [10, 144]
+# conv.weight cần shape [10, 16, 3, 3]
+# 144 = 16*3*3, và flatten đánh chỉ số theo NCHW: i = c*(H*W) + h*W + w
+# -> đúng bằng thứ tự chiều của conv.weight, nên .view() là đủ.
 conv = nn.Conv2d(C, OUT, kernel_size=H, padding=0, bias=True).to(device)
 with torch.no_grad():
     conv.weight.copy_(fc.weight.view(OUT, C, H, W))
@@ -58,20 +58,20 @@ def dem(module):
 
 
 print("=" * 62)
-print("SO THAM SO")
+print("SỐ THAM SỐ")
 print("=" * 62)
 print(f"  Linear({IN},{OUT})                : {dem(fc):,} params")
 print(f"  Conv2d({C}->{OUT}, k={H}, p=0)      : {dem(conv):,} params")
-print(f"  Cong thuc Linear : {IN} x {OUT} + {OUT} = {IN * OUT + OUT:,}")
-print(f"  Cong thuc Conv2d : {H} x {W} x {C} x {OUT} + {OUT} = {H * W * C * OUT + OUT:,}")
-print(f"  => Bang nhau: {dem(fc) == dem(conv)}")
+print(f"  Công thức Linear : {IN} x {OUT} + {OUT} = {IN * OUT + OUT:,}")
+print(f"  Công thức Conv2d : {H} x {W} x {C} x {OUT} + {OUT} = {H * W * C * OUT + OUT:,}")
+print(f"  => Bằng nhau: {dem(fc) == dem(conv)}")
 
 
 # ------------------------------------------------------------
 # [3] Lấy feature map ngay trước flatten
 # ------------------------------------------------------------
 def feature_map(x):
-    """Chay lai dung forward cua SmallCNN, dung ngay truoc flatten."""
+    """Chạy lại đúng forward của SmallCNN, dừng ngay trước flatten."""
     x = model.pool(model.relu(model.conv1(x)))   # 28 -> 14
     x = model.pool(model.relu(model.conv2(x)))   # 14 -> 7
     x = model.pool(model.relu(model.conv3(x)))   # 7  -> 3
@@ -87,8 +87,8 @@ so_phan_tu = 0
 lech_du_doan = 0
 so_anh = 0
 shape_conv = None
-max_logit = 0.0          # do lon logit -> de biet 2e-4 la lon hay binh thuong
-vuot_nguong = 0          # so phan tu lech qua 1e-4
+max_logit = 0.0          # độ lớn logit -> để biết 2e-4 là lớn hay bình thường
+vuot_nguong = 0          # số phần tử lệch quá 1e-4
 
 with torch.no_grad():
     for data, _ in test_loader:
@@ -114,47 +114,47 @@ with torch.no_grad():
 
 print()
 print("=" * 62)
-print(f"SO SANH LOGIT TREN {so_anh:,} ANH TEST")
+print(f"SO SÁNH LOGIT TRÊN {so_anh:,} ẢNH TEST")
 print("=" * 62)
-print(f"  Shape dau ra Linear : (10,)")
-print(f"  Shape dau ra Conv2d : {shape_conv}   (flatten lai thanh (10,))")
-print(f"  So phan tu da so    : {so_phan_tu:,}")
-print(f"  Sai lech LON NHAT   : {max_diff:.3e}")
-print(f"  Sai lech trung binh : {tong_diff / so_phan_tu:.3e}")
-print(f"  Logit lon nhat      : {max_logit:.3f}")
-print(f"  Sai lech TUONG DOI  : {max_diff / max_logit:.3e}  (= lech lon nhat / logit lon nhat)")
+print(f"  Shape đầu ra Linear : (10,)")
+print(f"  Shape đầu ra Conv2d : {shape_conv}   (flatten lại thành (10,))")
+print(f"  Số phần tử đã so    : {so_phan_tu:,}")
+print(f"  Sai lệch LỚN NHẤT   : {max_diff:.3e}")
+print(f"  Sai lệch trung bình : {tong_diff / so_phan_tu:.3e}")
+print(f"  Logit lớn nhất      : {max_logit:.3f}")
+print(f"  Sai lệch TƯƠNG ĐỐI  : {max_diff / max_logit:.3e}  (= lệch lớn nhất / logit lớn nhất)")
 print(f"  Float32 eps         : {torch.finfo(torch.float32).eps:.3e}")
-print(f"  Tuong duong         : {max_diff / max_logit / torch.finfo(torch.float32).eps:.0f} lan eps")
-print(f"  So phan tu lech >1e-4: {vuot_nguong:,} / {so_phan_tu:,}"
+print(f"  Tương đương         : {max_diff / max_logit / torch.finfo(torch.float32).eps:.0f} lần eps")
+print(f"  Số phần tử lệch >1e-4: {vuot_nguong:,} / {so_phan_tu:,}"
       f"  ({100 * vuot_nguong / so_phan_tu:.3f}%)")
-print(f"  So anh doan KHAC nhau: {lech_du_doan} / {so_anh}")
+print(f"  Số ảnh đoán KHÁC nhau: {lech_du_doan} / {so_anh}")
 
 print()
 if lech_du_doan == 0:
-    print("  => Cung du doan tren toan bo test set.")
+    print("  => Cùng dự đoán trên toàn bộ test set.")
 else:
-    print(f"  => CO {lech_du_doan} anh doan khac nhau — xem lai thu tu chieu trong .view()")
+    print(f"  => CÓ {lech_du_doan} ảnh đoán khác nhau — xem lại thứ tự chiều trong .view()")
 
 if max_diff == 0.0:
-    print("  => Giong nhau TUNG BIT tren may nay.")
+    print("  => Giống nhau TỪNG BIT trên máy này.")
 else:
-    print(f"  => Khong bit-exact: lech toi da {max_diff:.3e}.")
-    print("     Do la sai so lam tron float32 vi thu tu cong don khac nhau")
-    print("     (Linear chay GEMM, Conv2d chay im2col), khong phai loi cong thuc.")
-    print(f"     Nguong verify TUYET DOI 1e-4 -> {'DAT' if max_diff < 1e-4 else 'KHONG DAT'}.")
+    print(f"  => Không bit-exact: lệch tối đa {max_diff:.3e}.")
+    print("     Đó là sai số làm tròn float32 vì thứ tự cộng dồn khác nhau")
+    print("     (Linear chạy GEMM, Conv2d chạy im2col), không phải lỗi công thức.")
+    print(f"     Ngưỡng verify TUYỆT ĐỐI 1e-4 -> {'ĐẠT' if max_diff < 1e-4 else 'KHÔNG ĐẠT'}.")
     print()
-    print("  BAI HOC CHO PHASE 2D (quan trong hon ca muc 12):")
-    print("     PyTorch chay CUNG mot phep toan bang hai cach da lech nhu tren.")
-    print("     Nen 'khop PyTorch trong 1e-4 tuyet doi' la muc tieu KHONG dat duoc,")
-    print("     ke ca khi golden model C viet dung 100%. Tieu chi nen dung:")
-    print("       1. So anh du doan khac nhau tren 10.000 anh test (o day: %d)" % lech_du_doan)
-    print("       2. Sai so TUONG DOI, khong phai tuyet doi")
-    print("     Sai lech logit khong doi du doan thi khong phai bug.")
+    print("  BÀI HỌC CHO PHASE 2D (quan trọng hơn cả mục 12):")
+    print("     PyTorch chạy CÙNG một phép toán bằng hai cách đã lệch như trên.")
+    print("     Nên 'khớp PyTorch trong 1e-4 tuyệt đối' là mục tiêu KHÔNG đạt được,")
+    print("     kể cả khi golden model C viết đúng 100%. Tiêu chí nên dùng:")
+    print("       1. Số ảnh dự đoán khác nhau trên 10.000 ảnh test (ở đây: %d)" % lech_du_doan)
+    print("       2. Sai số TƯƠNG ĐỐI, không phải tuyệt đối")
+    print("     Sai lệch logit không đổi dự đoán thì không phải bug.")
 
 print()
 print("=" * 62)
-print("KET LUAN: hai lop dung CHUNG mot mang so, chi khac cach danh chi so.")
-print("Doi qua lai chi can .view(), khong can train lai.")
-print("Van giu Linear trong project: cung 1.450 params va 1.440 MAC,")
-print("nhung golden model C chi phai viet 2 vong lap thay vi 6.")
+print("KẾT LUẬN: hai lớp dùng CHUNG một mảng số, chỉ khác cách đánh chỉ số.")
+print("Đổi qua lại chỉ cần .view(), không cần train lại.")
+print("Vẫn giữ Linear trong project: cùng 1.450 params và 1.440 MAC,")
+print("nhưng golden model C chỉ phải viết 2 vòng lặp thay vì 6.")
 print("=" * 62)

@@ -22,8 +22,8 @@ import matplotlib.pyplot as plt
 from model_comparison import DigitCNN, SmallCNN, test_loader, device
 
 import os
-os.makedirs("models", exist_ok=True)   # noi chua .pth va .onnx
-os.makedirs("figures", exist_ok=True)  # noi chua .png
+os.makedirs("models", exist_ok=True)   # nơi chứa .pth và .onnx
+os.makedirs("figures", exist_ok=True)  # nơi chứa .png
 
 
 MEAN, STD = 0.1307, 0.3081                 # để đảo chuẩn hoá khi hiển thị ảnh
@@ -61,7 +61,7 @@ def plot_confusion(conf, title, path):
     fig, ax = plt.subplots(figsize=(7.5, 6.5))
     im = ax.imshow(conf, cmap="Blues")
     ax.set_xticks(range(10)); ax.set_yticks(range(10))
-    ax.set_xlabel("Model doan"); ax.set_ylabel("Dap an that")
+    ax.set_xlabel("Model đoán"); ax.set_ylabel("Đáp án thật")
     ax.set_title(title)
     for i in range(10):
         for j in range(10):
@@ -99,7 +99,7 @@ def plot_samples(path):
         ax.axis("off")
         ax.imshow(data[i][0] * STD + MEAN, cmap="gray")   # đảo chuẩn hoá về 0-1
         ax.set_title(str(target[i].item()), fontsize=10)
-    plt.suptitle("Anh dau vao MNIST 28x28 grayscale", fontsize=13)
+    plt.suptitle("Ảnh đầu vào MNIST 28x28 grayscale", fontsize=13)
     plt.tight_layout()
     plt.savefig(path, dpi=130)
     plt.close(fig)
@@ -115,9 +115,9 @@ def plot_per_class(conf_a, conf_b, path):
     fig, ax = plt.subplots(figsize=(10, 4.6))
     ax.bar(x - w / 2, a, w, label="DigitCNN (206.922 params)", color="#B8C9D4")
     ax.bar(x + w / 2, b, w, label="SmallCNN (5.018 params)", color="#1C7293")
-    ax.set_xticks(x); ax.set_xlabel("Chu so"); ax.set_ylabel("Accuracy (%)")
+    ax.set_xticks(x); ax.set_xlabel("Chữ số"); ax.set_ylabel("Accuracy (%)")
     ax.set_ylim(96, 100.3)
-    ax.set_title("Accuracy theo tung chu so")
+    ax.set_title("Accuracy theo từng chữ số")
     ax.legend(frameon=False)
     ax.grid(axis="y", color="#DCE5EB")
     ax.set_axisbelow(True)
@@ -130,43 +130,43 @@ def plot_per_class(conf_a, conf_b, path):
 
 
 if __name__ == "__main__":
-    print("\n[1/4] Phan tich SmallCNN tren test set...")
+    print("\n[1/4] Phân tích SmallCNN trên test set...")
     conf_s, wrong_s = analyze(SmallCNN(), "models/small_cnn.pth")
 
-    print("[2/4] Phan tich DigitCNN de doi chieu...")
+    print("[2/4] Phân tích DigitCNN để đối chiếu...")
     conf_d, _ = analyze(DigitCNN(), "models/digit_cnn_val.pth")
 
     # ---- so sánh cặp hay nhầm ----
     print("\n" + "=" * 62)
-    print("CAP CHU SO HAY NHAM NHAT — co doi khi thu gon kien truc khong?")
+    print("CẶP CHỮ SỐ HAY NHẦM NHẤT — có đổi khi thu gọn kiến trúc không?")
     print("=" * 62)
     print(f"{'':4}{'DigitCNN':<26}{'SmallCNN':<26}")
     print("-" * 62)
     for i, (pd, ps) in enumerate(zip(top_pairs(conf_d), top_pairs(conf_s)), 1):
-        print(f"{i:<4}{f'{pd[1]} -> {pd[2]}  ({pd[0]} lan)':<26}"
-              f"{f'{ps[1]} -> {ps[2]}  ({ps[0]} lan)':<26}")
+        print(f"{i:<4}{f'{pd[1]} -> {pd[2]}  ({pd[0]} lần)':<26}"
+              f"{f'{ps[1]} -> {ps[2]}  ({ps[0]} lần)':<26}")
     print("-" * 62)
-    print(f"{'Tong sai':<10}{10000 - np.trace(conf_d):<20}{10000 - np.trace(conf_s):<20}")
+    print(f"{'Tổng sai':<10}{10000 - np.trace(conf_d):<20}{10000 - np.trace(conf_s):<20}")
     print(f"{'Accuracy':<10}{100*np.trace(conf_d)/10000:<20.2f}{100*np.trace(conf_s)/10000:<20.2f}")
     print("=" * 62)
 
-    print("\n[3/4] Ve hinh...")
+    print("\n[3/4] Vẽ hình...")
     plot_confusion(conf_s, "Confusion Matrix — SmallCNN (5.018 params)",
                    "figures/confusion_matrix_small.png")
-    plot_wrong(wrong_s, "Anh SmallCNN doan sai (T = that, P = doan)",
+    plot_wrong(wrong_s, "Ảnh SmallCNN đoán sai (T = thật, P = đoán)",
                "figures/error_analysis_small.png")
     plot_samples("figures/mnist_samples.png")
     plot_per_class(conf_d, conf_s, "figures/per_class_accuracy.png")
 
-    print("\n[4/4] Xuat ONNX de xem bang Netron (netron.app)...")
+    print("\n[4/4] Xuất ONNX để xem bằng Netron (netron.app)...")
     model = SmallCNN().to(device)
     model.load_state_dict(torch.load("models/small_cnn.pth", map_location=device))
     model.eval()
     torch.onnx.export(
         model, torch.randn(1, 1, 28, 28, device=device), "models/small_cnn.onnx",
         input_names=["input"], output_names=["logits"], opset_version=18,
-        # opset 18: torch moi chi co implementation cho >=18. De 13 van xuat duoc
-        # nhung in ra mot traceback "No Adapter From Version 14 for Relu" gay hoang mang.
+        # opset 18: torch mới chỉ có implementation cho >=18. Để 13 vẫn xuất được
+        # nhưng in ra một traceback "No Adapter From Version 14 for Relu" gây hoang mang.
     )
     print("  -> small_cnn.onnx")
-    print("\nXong. Keo small_cnn.onnx vao netron.app de chup so do kien truc.")
+    print("\nXong. Kéo small_cnn.onnx vào netron.app để chụp sơ đồ kiến trúc.")

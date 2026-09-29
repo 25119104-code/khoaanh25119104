@@ -19,7 +19,7 @@ import torch
 # model_comparison.py nằm ở đó.
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-os.chdir(ROOT)   # model_comparison dung duong dan tuong doi: ./data, models/
+os.chdir(ROOT)   # model_comparison dùng đường dẫn tương đối: ./data, models/
 
 from model_comparison import SmallCNN, evaluate, test_loader, device
 

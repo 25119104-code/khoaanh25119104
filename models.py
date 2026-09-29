@@ -1,19 +1,19 @@
 # ============================================================
-# models.py — NOI DUY NHAT dinh nghia kien truc model
+# models.py — NƠI DUY NHẤT định nghĩa kiến trúc model
 # ============================================================
-# Ly do ton tai: truoc day class DigitCNN bi chep tay o 4 file
+# Lý do tồn tại: trước đây class DigitCNN bị chép tay ở 4 file
 # (mnist_digit_recognition.py, model_comparison.py, demo_app.py,
-# error_analysis.py). Doi kien truc la phai sua 4 cho; quen 1 cho
-# thi hoac loi shape, hoac te hon la chay duoc nhung sai.
+# error_analysis.py). Đổi kiến trúc là phải sửa 4 chỗ; quên 1 chỗ
+# thì hoặc lỗi shape, hoặc tệ hơn là chạy được nhưng sai.
 #
-# Tu nay moi file import tu day:
+# Từ nay mọi file import từ đây:
 #     from models import SmallCNN
 #
-# Ngoai le co y: mnist_digit_recognition.py (baseline tuan 1) van giu
-# ban chep rieng cua no, de dong bang lam moc so sanh — khong sua.
+# Ngoại lệ có ý: mnist_digit_recognition.py (baseline tuần 1) vẫn giữ
+# bản chép riêng của nó, để đóng băng làm mốc so sánh — không sửa.
 #
-# KIEN TRUC DA CHOT: SmallCNN (5.018 params, test acc 98,82%).
-# DigitCNN (206.922 params, 99,05%) chi giu de doi chieu.
+# KIẾN TRÚC ĐÃ CHỐT: SmallCNN (5.018 params, test acc 98,82%).
+# DigitCNN (206.922 params, 99,05%) chỉ giữ để đối chiếu.
 # ============================================================
 
 import torch.nn as nn

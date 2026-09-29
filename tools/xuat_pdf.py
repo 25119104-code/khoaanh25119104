@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 # ============================================================
-# XUAT PDF TU operators/*.md
+# XUẤT PDF TỪ operators/*.md
 #
-# Muc dich: PDF chi la BAN IN sinh ra tu .md, khong phai mot ban noi dung
-# rieng. Sua .md xong chay lai script nay la PDF khop lai ngay — het canh
-# hai ban lech nhau.
+# Mục đích: PDF chỉ là BẢN IN sinh ra từ .md, không phải một bản nội dung
+# riêng. Sửa .md xong chạy lại script này là PDF khớp lại ngay — hết cảnh
+# hai bản lệch nhau.
 #
-# CHAY:  python tools/xuat_pdf.py
-#        (script tu tro ve thu muc goc project nen dung o dau chay cung duoc)
+# CHẠY:  python tools/xuat_pdf.py
+#        (script tự trỏ về thư mục gốc project nên đứng ở đâu chạy cũng được)
 #
-# Khong can cai them thu vien: bo chuyen doi Markdown viet san trong file,
-# chi dung thu vien chuan. Phan in PDF goi Google Chrome o che do headless.
+# Không cần cài thêm thư viện: bộ chuyển đổi Markdown viết sẵn trong file,
+# chỉ dùng thư viện chuẩn. Phần in PDF gọi Google Chrome ở chế độ headless.
 # ============================================================
 
 import html
@@ -27,7 +27,7 @@ NGUON = "operators"
 DICH = "PDF"
 FILES = ["README", "conv2d", "relu", "maxpool2d", "flatten", "linear", "argmax"]
 
-# Duong dan Chrome/Chromium thuong gap, theo thu tu uu tien
+# Đường dẫn Chrome/Chromium thường gặp, theo thứ tự ưu tiên
 CHROME_PATHS = [
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     "/Applications/Chromium.app/Contents/MacOS/Chromium",
@@ -86,17 +86,17 @@ hr { border: none; border-top: 0.75pt solid #C6D6DF; margin: 14pt 0; }
 
 
 # ------------------------------------------------------------
-# Bo chuyen doi Markdown -> HTML, du dung cho tap con dang dung trong
-# operators/*.md: heading, bang, khoi code, danh sach, trich dan, hr,
-# dam/nghieng/code inline.
+# Bộ chuyển đổi Markdown -> HTML, đủ dùng cho tập con đang dùng trong
+# operators/*.md: heading, bảng, khối code, danh sách, trích dẫn, hr,
+# đậm/nghiêng/code inline.
 # ------------------------------------------------------------
 def inline(t):
-    """Xu ly dam, nghieng, code inline, link. Escape HTML truoc."""
-    # Tach khoi `code` ra truoc de khong bi cac luat khac an vao
+    """Xử lý đậm, nghiêng, code inline, link. Escape HTML trước."""
+    # Tách khối `code` ra trước để không bị các luật khác ăn vào
     phan = re.split(r"(`[^`]*`)", t)
     ra = []
     for i, p in enumerate(phan):
-        if i % 2 == 1:                                   # nam trong dau `
+        if i % 2 == 1:                                   # nằm trong dấu `
             ra.append("<code>" + html.escape(p[1:-1]) + "</code>")
             continue
         p = html.escape(p)
@@ -108,7 +108,7 @@ def inline(t):
 
 
 def hang_bang(dong):
-    """Tach mot dong bang thanh danh sach o."""
+    """Tách một dòng bảng thành danh sách ô."""
     d = dong.strip()
     if d.startswith("|"):
         d = d[1:]
@@ -126,7 +126,7 @@ def md2html(md):
         d = dong[i]
         s = d.strip()
 
-        # --- khoi code ```
+        # --- khối code ```
         if s.startswith("```"):
             i += 1
             buf = []
@@ -137,7 +137,7 @@ def md2html(md):
             ra.append("<pre><code>" + html.escape("\n".join(buf)) + "</code></pre>")
             continue
 
-        # --- bang: dong hien tai va dong sau la dong ngan cach ---|---
+        # --- bảng: dòng hiện tại và dòng sau là dòng ngăn cách ---|---
         if s.startswith("|") and i + 1 < n and re.match(r"^\s*\|[\s:|-]+\|\s*$", dong[i + 1]):
             dau = hang_bang(s)
             i += 2
@@ -154,7 +154,7 @@ def md2html(md):
             ra.append("".join(t))
             continue
 
-        # --- duong ke ngang
+        # --- đường kẻ ngang
         if re.match(r"^\s*(-{3,}|\*{3,})\s*$", d):
             ra.append("<hr>")
             i += 1
@@ -168,7 +168,7 @@ def md2html(md):
             i += 1
             continue
 
-        # --- trich dan >
+        # --- trích dẫn >
         if s.startswith(">"):
             buf = []
             while i < n and dong[i].strip().startswith(">"):
@@ -177,7 +177,7 @@ def md2html(md):
             ra.append("<blockquote>" + md2html("\n".join(buf)) + "</blockquote>")
             continue
 
-        # --- danh sach (co so hoac gach dau dong)
+        # --- danh sách (có số hoặc gạch đầu dòng)
         m = re.match(r"^(\s*)([-*]|\d+\.)\s+(.*)$", d)
         if m:
             co_so = bool(re.match(r"^\d+\.$", m.group(2)))
@@ -186,7 +186,7 @@ def md2html(md):
             while i < n:
                 mm = re.match(r"^(\s*)([-*]|\d+\.)\s+(.*)$", dong[i])
                 if not mm:
-                    # dong noi tiep cua muc truoc (thut le, khong rong)
+                    # dòng nối tiếp của mục trước (thụt lề, không rỗng)
                     if muc and dong[i].strip() and dong[i].startswith(("   ", "\t")):
                         muc[-1] += " " + dong[i].strip()
                         i += 1
@@ -197,12 +197,12 @@ def md2html(md):
             ra.append(f"<{the}>" + "".join("<li>" + inline(x) + "</li>" for x in muc) + f"</{the}>")
             continue
 
-        # --- dong trong
+        # --- dòng trống
         if not s:
             i += 1
             continue
 
-        # --- doan van: gom cac dong lien tiep
+        # --- đoạn văn: gom các dòng liên tiếp
         buf = [s]
         i += 1
         while i < n:
@@ -233,11 +233,11 @@ def main():
     os.makedirs(DICH, exist_ok=True)
     chrome = tim_chrome()
     if not chrome:
-        print("Khong tim thay Chrome/Chromium.")
-        print("Script van sinh file .html trong PDF/html/ — mo bang trinh duyet")
-        print("roi Cmd+P -> Save as PDF la duoc.")
+        print("Không tìm thấy Chrome/Chromium.")
+        print("Script vẫn sinh file .html trong PDF/html/ — mở bằng trình duyệt")
+        print("rồi Cmd+P -> Save as PDF là được.")
     else:
-        print("Dung trinh duyet:", chrome)
+        print("Dùng trình duyệt:", chrome)
 
     os.makedirs(os.path.join(DICH, "html"), exist_ok=True)
     xong, loi = [], []
@@ -245,7 +245,7 @@ def main():
     for ten in FILES:
         md_path = os.path.join(NGUON, ten + ".md")
         if not os.path.exists(md_path):
-            loi.append(f"{ten}: khong co {md_path}")
+            loi.append(f"{ten}: không có {md_path}")
             continue
 
         md = open(md_path, encoding="utf-8").read()
@@ -253,9 +253,9 @@ def main():
         trang = (
             "<!DOCTYPE html><html lang='vi'><head><meta charset='utf-8'>"
             f"<title>{html.escape(ten)}</title><style>{CSS}</style></head><body>"
-            f"<div class='nguon'>Sinh tu <code>operators/{html.escape(ten)}.md</code>"
-            " bang <code>tools/xuat_pdf.py</code> — dung sua truc tiep file PDF nay,"
-            " sua file .md roi chay lai script.</div>"
+            f"<div class='nguon'>Sinh từ <code>operators/{html.escape(ten)}.md</code>"
+            " bằng <code>tools/xuat_pdf.py</code> — đừng sửa trực tiếp file PDF này,"
+            " sửa file .md rồi chạy lại script.</div>"
             f"{than}</body></html>"
         )
         html_path = os.path.abspath(os.path.join(DICH, "html", ten + ".html"))
@@ -275,16 +275,16 @@ def main():
         if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 1000:
             xong.append(f"{ten}.pdf  ({os.path.getsize(pdf_path):,} byte)")
         else:
-            loi.append(f"{ten}: Chrome khong xuat duoc — {r.stderr.strip()[:200]}")
+            loi.append(f"{ten}: Chrome không xuất được — {r.stderr.strip()[:200]}")
 
     print()
     print("=" * 60)
     for x in xong:
         print("  OK  ", x)
     for x in loi:
-        print("  LOI ", x)
+        print("  LỖI ", x)
     print("=" * 60)
-    print(f"{len(xong)} file trong {DICH}/ — sinh tu {NGUON}/*.md")
+    print(f"{len(xong)} file trong {DICH}/ — sinh từ {NGUON}/*.md")
     return 1 if loi else 0
 
 
