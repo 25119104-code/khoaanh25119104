@@ -28,7 +28,8 @@ Gốc có 11 file `.py` + roadmap v3 + `.gitignore`. Còn lại nằm trong thư
 | `figures/` | 8 hình phân tích + sơ đồ Netron + 3 hình `conv_*.png` (tính 1 điểm conv, vùng đệm) |
 | `params/` | `weights.txt` (4.968) + `biases.txt` (50) + README bảng offset — **sinh tự động, không sửa tay** |
 | `golden/` | Ảnh mẫu + đầu ra PyTorch từng lớp + logit cả test set — chuẩn để so Python/C |
-| `docs/` | slide + 2 file Word nộp Thầy + ghi chú chuẩn bị gặp + ghi chú gặp Thầy + file này |
+| `golden_c/` | **Golden model C float32** `golden_model.c` + README. File chạy được không commit |
+| `docs/` | slide + 2 file Word nộp Thầy + ghi chú gặp Thầy + `tong-hop-video-thay.md` + **`on-tap-flow-7-buoc.md`** (tài liệu ôn theo slide 7 bước, 11 bài tính tay) + file này |
 | `operators/` | README index + 6 file operator (công thức, mã giả, bẫy port C) |
 | `PDF/` | Bản in của `operators/*.md`, sinh bằng `tools/xuat_pdf.py` — sửa `.md` rồi chạy lại |
 | `reports/` | report tuần 1, 2, 3, 4 |
@@ -55,8 +56,10 @@ vào `sys.path` + `os.chdir` nên chạy ở đâu cũng được. Comment và c
 | `inference_python.py` | Inference **vòng lặp thuần, không PyTorch**, mảng 1 chiều như C. 2 bản conv: `if` và đệm 0. Bản nháp của golden model C |
 | `make_conv_figures.py` | Vẽ 3 hình tính 1 điểm conv bằng số thật |
 | `study/xem_quantization.py` | Chỉ đọc — khảo sát int8/int16/Q1.7 trên checkpoint thật |
+| `study/thu_batchnorm.py` | Thí nghiệm thêm BN + gộp BN vào Conv. Kết quả: `study/thi-nghiem-batchnorm.md` |
+| `study/kiem_tra_tinh_tay.py` | Đáp án 11 bài tính tay của `docs/on-tap-flow-7-buoc.md` |
 
-## Trạng thái (cập nhật 29/09/2026)
+## Trạng thái (cập nhật 04/10/2026)
 - **Kiến trúc đã CHỐT: `SmallCNN` — 5.018 params, test acc 98,82%.** (DigitCNN cũ: 206.922
   params, 99,05% — giữ làm mốc. Giảm 41,2 lần.)
 - Phase 1 ✅ validation set 50k/10k/10k, checkpoint theo best val acc.
@@ -70,8 +73,12 @@ vào `sys.path` + `os.chdir` nên chạy ở đâu cũng được. Comment và c
 - ✅ **Phase 2B trích tham số** — 2 file `weights.txt` + `biases.txt` theo ý Thầy, `%.9g`, khớp từng bit.
 - ✅ **Inference Python** — khớp PyTorch từng lớp; 10.000 ảnh: 98,82%, trùng dự đoán 10.000/10.000.
 - ✅ **Report tuần 4** (`reports/report-tuan04-20260930.md`) đã commit. PDF operators đã sinh lại.
-- **Tiếp theo: Phase 2D golden model C float32**, dịch từ `inference_python.py`, dùng **bản conv đệm 0**.
-- Chưa làm: cập nhật Word bước 3 với phần "tính 1 điểm" và "`if` vs đệm 0"; tự tính tay 1 điểm conv1.
+- ✅ **Phase 2D golden model C float32** (`golden_c/`) — chỉ stdio + stdlib, 395.136 MAC conv/ảnh, khớp PyTorch từng lớp;
+  10.000 ảnh: 98,82%, trùng dự đoán 10.000/10.000, logit lệch ≤ 3,05e-05.
+- ✅ Thí nghiệm BatchNorm (study): không tăng accuracy, train nhanh ×2, gộp BN → 0/10.000 ảnh khác. Giữ model không BN.
+- ✅ Tổng hợp 9 video của Thầy (`docs/tong-hop-video-thay.md`): đang ở bước 6/7 của flow.
+- **Báo cáo thứ Tư 07/10**: ôn `docs/on-tap-flow-7-buoc.md`, tự làm 11 bài tính tay.
+- Chưa làm: cập nhật Word bước 3; quantization INT8 (chờ Thầy); RTL giải pháp 1 (bước 7).
 
 ## Đường inference — chỉ 6 operator
 

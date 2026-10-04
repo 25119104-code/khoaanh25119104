@@ -36,3 +36,6 @@ audio/
 PDF/html/
 archive/PDF-cu/
 operators/*.pdf
+
+# ===== Golden model C: file chạy được, biên dịch lại trên máy =====
+golden_c/golden_model
