@@ -46,7 +46,8 @@ Chỗ này **có** kích thước ảnh. Params quyết định bộ nhớ, MAC 
 
 ## 3. Mã giả
 
-Cho 1 ảnh (bỏ chiều batch). Zero-padding xử lý bằng kiểm tra biên, không cần cấp phát mảng đệm.
+Cho 1 ảnh (bỏ chiều batch). **Bản chính — đệm 0, luôn đủ K×K tap.** Đây là cách golden model C
+(`golden_c/golden_model.c`, hàm conv) đang làm và là cách hợp với FPGA (xem mục 5).
 
 ```
 conv2d(input[IN_CH][IN_H][IN_W],
@@ -54,6 +55,13 @@ conv2d(input[IN_CH][IN_H][IN_W],
        bias[OUT_CH],
        output[OUT_CH][OUT_H][OUT_W]):
 
+  # Bước 1: tạo ảnh đã đệm 0, mỗi cạnh dày PAD ô
+  HP = IN_H + 2*PAD ;  WP = IN_W + 2*PAD
+  padded[IN_CH][HP][WP] = 0                  # đệm 0 SAU chuẩn hoá, không phải nền ảnh
+  for ic, y, x:
+    padded[ic][y + PAD][x + PAD] = input[ic][y][x]
+
+  # Bước 2: tích chập, không có if
   for oc = 0 .. OUT_CH-1:                  # từng kênh đầu ra
     for oy = 0 .. OUT_H-1:
       for ox = 0 .. OUT_W-1:
@@ -62,20 +70,27 @@ conv2d(input[IN_CH][IN_H][IN_W],
 
         for ic = 0 .. IN_CH-1:             # cộng dồn qua mọi kênh đầu vào
           for ky = 0 .. K-1:
-            for kx = 0 .. K-1:
-
-              iy = oy * STRIDE - PAD + ky
-              ix = ox * STRIDE - PAD + kx
-
-              if 0 <= iy < IN_H and 0 <= ix < IN_W:      # ngoài biên = pixel 0
-                acc += input[ic][iy][ix] * weight[oc][ic][ky][kx]
+            for kx = 0 .. K-1:             # luôn đủ K×K tap, tap ở biên nhân với 0
+              acc += padded[ic][oy*STRIDE + ky][ox*STRIDE + kx] * weight[oc][ic][ky][kx]
 
         output[oc][oy][ox] = acc
 ```
 
+**Bản tham khảo — kiểm biên bằng `if`** (không cần mảng đệm, bỏ các tap ngoài ảnh; hợp CPU, **không**
+dùng cho FPGA). Kết quả giống hệt bản chính vì cộng `0 × w` không đổi tổng:
+
+```
+              iy = oy * STRIDE - PAD + ky
+              ix = ox * STRIDE - PAD + kx
+              if 0 <= iy < IN_H and 0 <= ix < IN_W:      # ngoài biên → bỏ tap
+                acc += input[ic][iy][ix] * weight[oc][ic][ky][kx]
+```
+
 6 vòng lặp lồng nhau. Vòng ngoài duyệt **vị trí đầu ra**, vòng trong duyệt **cửa sổ kernel**.
 
-Hai dòng quan trọng nhất là `iy` và `ix`: chúng ánh xạ toạ độ đầu ra về toạ độ đầu vào. Dấu `− PAD` là chỗ dễ sai nhất.
+Ánh xạ toạ độ: điểm ra `(oy, ox)` dùng ô vào `iy = oy·STRIDE − PAD + ky` (tương tự cho `ix`). Trong bản chính,
+`−PAD` biến mất vì ảnh đã được dịch vào `+PAD` lúc chép sang `padded` — hai cái triệt tiêu nhau.
+Dấu `− PAD` là chỗ dễ sai nhất.
 
 ### Tính 1 điểm output — phần ruột của 6 vòng lặp
 
@@ -119,8 +134,8 @@ Kernel 3×3 đặc biệt thân thiện: chỉ cần 9 bộ nhân và line-buffe
 
 ### `if` kiểm biên hay đệm 0? (Thầy góp ý 23/09)
 
-Mã giả ở mục 3 dùng `if` để **bỏ** các tap rơi vào vùng padding. Trên CPU cách đó tiết kiệm được
-phép nhân. **Trên FPGA thì ngược lại:**
+Bản tham khảo ở mục 3 dùng `if` để **bỏ** các tap rơi vào vùng padding. Trên CPU cách đó tiết kiệm được
+phép nhân. **Trên FPGA thì ngược lại**, nên bản chính ở mục 3 và golden model C dùng đệm 0:
 
 | | Có `if` (bỏ tap ở biên) | Đệm 0, luôn đủ 9 tap |
 |---|---|---|
@@ -160,7 +175,7 @@ timing**. Giảm phép toán mà làm luồng điều khiển rẽ nhánh thì c
 Làm trên giấy, không chạy code:
 
 1. Với `conv1` của SmallCNN (`IN_CH=1, OUT_CH=8, K=3, PAD=1, STRIDE=1`, ảnh 28×28): vòng lặp trong cùng chạy **tổng cộng bao nhiêu lần**? So với con số MAC ở mục 4.
-2. Tính `output[0][0][0]` cần bao nhiêu phép nhân? Trong số đó bao nhiêu phép rơi vào vùng padding (bị bỏ qua)?
+2. Tính `output[0][0][0]` cần bao nhiêu phép nhân? Trong số đó bao nhiêu phép rơi vào vùng padding (bản `if` bỏ đi, bản đệm 0 nhân với 0)?
 3. Nếu đổi `PAD` từ 1 xuống 0, `H_out` của `conv1` thành bao nhiêu? Shape trước `flatten` đổi thế nào? `fc` còn bao nhiêu params?
 
 ---
@@ -197,8 +212,9 @@ pixel góc (4)                      × 4 cửa sổ =    16
 6.724 × 1 × 8 = 53.792  ✓ khớp
 ```
 
-**Hệ quả cho FPGA:** nếu thiết kế phần cứng theo con số 56.448 thì thừa 4,71% chu kỳ cho
-những phép nhân với 0. Cách tránh: xử lý riêng viền ảnh thay vì kiểm biên trong vòng lặp.
+**Hệ quả cho FPGA:** 2.656 phép "thừa" này **không** làm chậm phần cứng. 9 bộ nhân chạy song song,
+mỗi điểm output mất 1 chu kỳ dù có bao nhiêu tap là số 0. Bỏ chúng bằng `if` hay xử lý riêng viền
+ảnh chỉ thêm bộ so sánh và MUX. Vì vậy thiết kế theo **56.448** (đủ 9 tap, đệm 0) — xem mục 5.
 
 #### Câu 2 — `output[0][0][0]`
 
@@ -211,8 +227,8 @@ ih= 0   ✗      ✓      ✓        ✓ = pixel thật
 ih= 1   ✗      ✓      ✓
 ```
 
-**9 vị trí cửa sổ, chỉ 4 phép nhân thật, 5 rơi vào padding.** Tức hơn một nửa số lần lặp ở
-ô này là vô ích.
+**9 vị trí cửa sổ, chỉ 4 phép nhân với pixel thật, 5 rơi vào padding.** Trên CPU, 5 phép đó là thừa.
+Trên FPGA vẫn nhân đủ 9 (5 phép nhân với 0) vì 9 bộ nhân chạy song song, không tốn thêm chu kỳ.
 
 Bốn góc đều như vậy (5 phép bỏ), các ô mép không phải góc bỏ 3 phép, ô trong lòng ảnh
 không bỏ phép nào. Cộng lại: `4×5 + 104×3 = 332` phép bỏ cho mỗi cặp `(in_ch, out_ch)` —
