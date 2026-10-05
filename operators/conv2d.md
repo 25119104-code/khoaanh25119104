@@ -116,6 +116,11 @@ Cố định `oc, oy, ox` thì chỉ còn 3 vòng trong:
 out[oc][oy][ox] = bias[oc] + Σ_ic Σ_ky Σ_kx  in[ic][oy−PAD+ky][ox−PAD+kx] · w[oc][ic][ky][kx]
 ```
 
+**Quy ước:** `in[ic][r][c] = 0` khi `r` hoặc `c` nằm ngoài 0…H−1 (zero-padding). Đây là công thức
+**toán** — mọi cách cài đặt (PyTorch, bản `if`, bản đệm 0, FPGA) đều phải ra đúng số này.
+Trong bản đệm 0: `in[ic][oy−PAD+ky][ox−PAD+kx] = padded[ic][oy+ky][ox+kx]` — `−PAD` ở đây và
+`+PAD` lúc chép vào `padded` triệt tiêu nhau, nên code không còn `−PAD`.
+
 | Lớp | Số MAC cho 1 điểm | Ghi chú |
 |---|---|---|
 | `conv1` | 1 × 3 × 3 = **9** | 1 kênh vào |

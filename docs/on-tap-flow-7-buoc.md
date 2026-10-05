@@ -117,6 +117,11 @@ Chi tiết đủ 7 mục mỗi operator ở `operators/`. Phần dưới là c�
 out[oc][oy][ox] = bias[oc] + Σ_ic Σ_ky Σ_kx  in[ic][oy−1+ky][ox−1+kx] · w[oc][ic][ky][kx]
 ```
 
+> **Quy ước:** `in[ic][r][c] = 0` khi `r` hoặc `c` nằm ngoài 0…H−1 (zero-padding).
+> Cài đặt bằng mảng đệm (golden C): `in[ic][oy−1+ky][ox−1+kx] = padded[ic][oy+ky][ox+kx]`.
+> `−1` ở đây và `+1` lúc chép ảnh vào `padded` triệt tiêu nhau, nên trong code không còn `−1`.
+> Công thức toán không đổi; chỉ cách đánh chỉ số khác.
+
 - conv1: 1·9 = **9 MAC**/điểm; conv2: 8·9 = **72**; conv3: 16·9 = **144**.
 - **Mọi kênh vào dồn vào MỘT accumulator** → ra một số duy nhất. Kênh vào không cho output riêng.
 - Accumulator **khởi tạo bằng bias**, không phải 0.
