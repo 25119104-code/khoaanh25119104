@@ -50,40 +50,56 @@ Cho 1 ảnh (bỏ chiều batch). **Bản chính — đệm 0, luôn đủ K×K 
 (`golden_c/golden_model.c`, hàm conv) đang làm và là cách hợp với FPGA (xem mục 5).
 
 ```
-conv2d(input[IN_CH][IN_H][IN_W],
+conv2d(input [IN_CH][IN_H][IN_W],
        weight[OUT_CH][IN_CH][K][K],
-       bias[OUT_CH],
+       bias  [OUT_CH],
        output[OUT_CH][OUT_H][OUT_W]):
 
-  # Bước 1: tạo ảnh đã đệm 0, mỗi cạnh dày PAD ô
-  HP = IN_H + 2*PAD ;  WP = IN_W + 2*PAD
-  padded[IN_CH][HP][WP] = 0                  # đệm 0 SAU chuẩn hoá, không phải nền ảnh
-  for ic, y, x:
-    padded[ic][y + PAD][x + PAD] = input[ic][y][x]
+  # ---- Bước 1: tạo ảnh đã đệm 0 ----
+  HP = IN_H + 2*PAD
+  WP = IN_W + 2*PAD
 
-  # Bước 2: tích chập, không có if
-  for oc = 0 .. OUT_CH-1:                  # từng kênh đầu ra
+  # khung toàn 0 (0 SAU chuẩn hoá, không phải nền)
+  padded[IN_CH][HP][WP] = 0
+
+  # chép ảnh vào giữa, chừa viền PAD ô
+  for ic = 0 .. IN_CH-1:
+    for y = 0 .. IN_H-1:
+      for x = 0 .. IN_W-1:
+        padded[ic][y+PAD][x+PAD] = input[ic][y][x]
+
+  # ---- Bước 2: tích chập, không có if ----
+  for oc = 0 .. OUT_CH-1:
     for oy = 0 .. OUT_H-1:
       for ox = 0 .. OUT_W-1:
 
-        acc = bias[oc]                     # khởi tạo bằng bias, KHÔNG phải 0
+        # khởi tạo bằng bias, KHÔNG phải 0
+        acc = bias[oc]
 
-        for ic = 0 .. IN_CH-1:             # cộng dồn qua mọi kênh đầu vào
+        # dồn mọi kênh vào cùng 1 acc
+        for ic = 0 .. IN_CH-1:
           for ky = 0 .. K-1:
-            for kx = 0 .. K-1:             # luôn đủ K×K tap, tap ở biên nhân với 0
-              acc += padded[ic][oy*STRIDE + ky][ox*STRIDE + kx] * weight[oc][ic][ky][kx]
+            for kx = 0 .. K-1:
+              # luôn đủ K×K tap, ô viền nhân với 0
+              iy = oy*STRIDE + ky
+              ix = ox*STRIDE + kx
+              acc += padded[ic][iy][ix]
+                   * weight[oc][ic][ky][kx]
 
         output[oc][oy][ox] = acc
 ```
 
 **Bản tham khảo — kiểm biên bằng `if`** (không cần mảng đệm, bỏ các tap ngoài ảnh; hợp CPU, **không**
-dùng cho FPGA). Kết quả giống hệt bản chính vì cộng `0 × w` không đổi tổng:
+dùng cho FPGA). Bỏ Bước 1, thay phần trong vòng `kx` của Bước 2 (dòng `iy`, `ix`, `acc +=`) bằng đoạn dưới. Kết quả giống hệt
+bản chính vì cộng `0 × w` không đổi tổng:
 
 ```
-              iy = oy * STRIDE - PAD + ky
-              ix = ox * STRIDE - PAD + kx
-              if 0 <= iy < IN_H and 0 <= ix < IN_W:      # ngoài biên → bỏ tap
-                acc += input[ic][iy][ix] * weight[oc][ic][ky][kx]
+              iy = oy*STRIDE - PAD + ky
+              ix = ox*STRIDE - PAD + kx
+              # ngoài ảnh thì bỏ tap
+              if 0 <= iy < IN_H and 0 <= ix < IN_W:
+                acc += input[ic][iy][ix]
+                     * weight[oc][ic][ky][kx]
 ```
 
 6 vòng lặp lồng nhau. Vòng ngoài duyệt **vị trí đầu ra**, vòng trong duyệt **cửa sổ kernel**.
