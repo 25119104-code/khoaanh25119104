@@ -29,7 +29,7 @@ Gốc có 11 file `.py` + roadmap v3 + `.gitignore`. Còn lại nằm trong thư
 | `params/` | `weights.txt` (4.968) + `biases.txt` (50) + README bảng offset — **sinh tự động, không sửa tay** |
 | `golden/` | Ảnh mẫu + đầu ra PyTorch từng lớp + logit cả test set — chuẩn để so Python/C |
 | `golden_c/` | **Golden model C float32** `golden_model.c` + README. File chạy được không commit |
-| `docs/` | slide + 2 file Word nộp Thầy + ghi chú gặp Thầy + `tong-hop-video-thay.md` + **`on-tap-flow-7-buoc.md`** (tài liệu ôn theo slide 7 bước, 11 bài tính tay) + file này |
+| `docs/` | slide + 2 file Word nộp Thầy + ghi chú gặp Thầy + `tong-hop-video-thay.md` + **`on-tap-flow-7-buoc.md`** (tài liệu ôn theo slide 7 bước, 11 bài tính tay) + file này. `tien-do-on-tap.md` chỉ có trong Project |
 | `operators/` | README index + 6 file operator (công thức, mã giả, bẫy port C) |
 | `PDF/` | Bản in của `operators/*.md`, sinh bằng `tools/xuat_pdf.py` — sửa `.md` rồi chạy lại |
 | `reports/` | report tuần 1, 2, 3, 4 |
@@ -58,14 +58,16 @@ vào `sys.path` + `os.chdir` nên chạy ở đâu cũng được. Comment và c
 | `study/xem_quantization.py` | Chỉ đọc — khảo sát int8/int16/Q1.7 trên checkpoint thật |
 | `study/thu_batchnorm.py` | Thí nghiệm thêm BN + gộp BN vào Conv. Kết quả: `study/thi-nghiem-batchnorm.md` |
 | `study/kiem_tra_tinh_tay.py` | Đáp án 11 bài tính tay của `docs/on-tap-flow-7-buoc.md` |
+| `study/tra-cuu-smallcnn.xlsx` | Excel tra cứu 1 điểm mọi lớp: địa chỉ in/w, dòng trong file txt, acc cộng dồn, so PyTorch |
 
-## Trạng thái (cập nhật 04/10/2026)
+## Trạng thái (cập nhật 05/10/2026)
 - **Kiến trúc đã CHỐT: `SmallCNN` — 5.018 params, test acc 98,82%.** (DigitCNN cũ: 206.922
   params, 99,05% — giữ làm mốc. Giảm 41,2 lần.)
 - Phase 1 ✅ validation set 50k/10k/10k, checkpoint theo best val acc.
 - Phase 1.5 ✅ đủ 6 operator — xem `operators/README.md`.
 - Phase 1.7 ✅ thu gọn kiến trúc.
-- Phase 2A ✅ mã giả đầy đủ.
+- Phase 2A ✅ mã giả đầy đủ. `operators/conv2d.md` (05/10): mã giả chính là **đệm 0, luôn 9 tap**
+  (khớp golden C), bản `if` chỉ để tham khảo; có quy ước zero-padding dưới công thức 1 điểm.
 - ✅ Gom `models.py` xong. ✅ `demo_app.py` và `error_analysis.py` đã chạy `SmallCNN`, đã test thật.
 - ✅ **Word bước 3 hết nợ** — có mục 5 (6 operator, mã giả, 2 chỗ bỏ phép toán, 3 bẫy port C)
   và mục 6.4 (biến thể padding conv1).
@@ -77,7 +79,11 @@ vào `sys.path` + `os.chdir` nên chạy ở đâu cũng được. Comment và c
   10.000 ảnh: 98,82%, trùng dự đoán 10.000/10.000, logit lệch ≤ 3,05e-05.
 - ✅ Thí nghiệm BatchNorm (study): không tăng accuracy, train nhanh ×2, gộp BN → 0/10.000 ảnh khác. Giữ model không BN.
 - ✅ Tổng hợp 9 video của Thầy (`docs/tong-hop-video-thay.md`): đang ở bước 6/7 của flow.
-- **Báo cáo thứ Tư 07/10**: ôn `docs/on-tap-flow-7-buoc.md`, tự làm 11 bài tính tay.
+- ✅ `study/tra-cuu-smallcnn.xlsx` — tra cứu 1 điểm conv1/conv2/conv3/maxpool/fc + argmax bằng số thật,
+  có số dòng trong file txt; khớp PyTorch. Dùng để tự kiểm bài tính tay.
+- **Báo cáo thứ Tư 07/10**: ôn `docs/on-tap-flow-7-buoc.md`. **Tiến độ chi tiết: đọc `docs/tien-do-on-tap.md`
+  (chỉ có trong Project) trước khi trả lời câu hỏi ôn tập.** 05/10 xong mục 1–3, bài 1, 2, 3, 4, 5, 8.
+  06/10: mục 4–5, bài 6, 7, 9, 10, 11; tối soạn nháp `reports/report-tuan05-20261007.md`.
 - Chưa làm: cập nhật Word bước 3; quantization INT8 (chờ Thầy); RTL giải pháp 1 (bước 7).
 
 ## Đường inference — chỉ 6 operator
@@ -138,6 +144,7 @@ bước vẫn nên chốt khi gặp lần tới.
 3. **Chuẩn hoá ảnh làm ở đâu?** PC xử lý trước rồi gửi float vào, hay chip nhận `uint8` và tự làm
    phép `a·x + b`?
 4. Board FPGA mục tiêu là gì? (chưa chặn việc gì lúc này)
+5. **Quantization làm trước hay sau golden C?** Video Step2 làm int8 trước golden C; Thầy nói chưa cần quantization.
 
 ## Cách Claude hỗ trợ
 1. Xác định đang ở phase nào theo v3 trước khi trả lời.
