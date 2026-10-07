@@ -315,6 +315,8 @@ cc -O2 -std=c99 -Wall -o golden_c/golden_model golden_c/golden_model.c
 | 10.000 ảnh test | **98,82%**, trùng dự đoán PyTorch **10.000/10.000**, logit lệch ≤ 3,05e-05 |
 | Thời gian | ~3 giây cho 10.000 ảnh |
 
+Số trên đo bằng gcc/Linux; chạy trên Mac M2 ra nhỏ hơn chút (logit ảnh mẫu 1,53e-05, cả 10.000 ảnh 2,67e-05), cùng accuracy và 10.000/10.000. Máy/trình biên dịch khác nhau thì số lẻ khác nhau, đều ≪ 1e-4.
+
 Lệch ~1e-05 là do **thứ tự cộng float32** khác PyTorch, không phải sai thuật toán. Sai thuật toán (quên bias, sai `−PAD`, sai layout) sẽ lệch từ ~0,1 trở lên.
 
 ### 6.4 Ba bẫy khi viết C (đều không crash, chỉ ra số sai)
