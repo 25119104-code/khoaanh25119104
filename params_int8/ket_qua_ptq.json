@@ -1,0 +1,107 @@
+{
+  "val": [
+    {
+      "ten": "A. Slide Thầy: ReLU riêng, calib 1000, M0 31 bit",
+      "acc": 98.78,
+      "khac_float": 9
+    },
+    {
+      "ten": "B. ReLU gộp vào kẹp (zp=-128), calib 1000, M0 31 bit",
+      "acc": 98.77,
+      "khac_float": 9
+    },
+    {
+      "ten": "C. Như B, calib chỉ 100 ảnh",
+      "acc": 98.76,
+      "khac_float": 9
+    },
+    {
+      "ten": "D. Như B, M0 chỉ 15 bit (vừa DSP nhỏ)",
+      "acc": 98.77,
+      "khac_float": 9
+    },
+    {
+      "ten": "E. Như B, M0 chỉ 8 bit",
+      "acc": 98.76,
+      "khac_float": 11
+    },
+    {
+      "ten": "F. Thử int4 (W4A4): như B nhưng 4 bit",
+      "acc": 97.69,
+      "khac_float": 171
+    }
+  ],
+  "float_val": 98.79,
+  "lop": [
+    {
+      "lop": "conv1",
+      "lo": -6.749,
+      "hi": 5.833,
+      "s_w": 0.0068476519246739665,
+      "s_ra": 0.02287461336921243,
+      "zp_ra": -128,
+      "M": 0.00381027275720422,
+      "M0": 2094719601,
+      "shift": 39
+    },
+    {
+      "lop": "conv2",
+      "lo": -25.868,
+      "hi": 18.126,
+      "s_w": 0.007726701225821427,
+      "s_ra": 0.07108251534256281,
+      "zp_ra": -128,
+      "M": 0.0024864807091914106,
+      "M0": 1366957226,
+      "shift": 39
+    },
+    {
+      "lop": "conv3",
+      "lo": -41.889,
+      "hi": 32.002,
+      "s_w": 0.00620496413839145,
+      "s_ra": 0.12549641927083333,
+      "zp_ra": -128,
+      "M": 0.003514558113529939,
+      "M0": 1932148756,
+      "shift": 39
+    }
+  ],
+  "dau_vao": {
+    "s_in": 0.012728234015259089,
+    "zp_in": -95,
+    "so_pixel_khac": 0,
+    "tong_pixel": 7840000
+  },
+  "test": {
+    "float": 98.82,
+    "int8": 98.84,
+    "khac": 9,
+    "dung_thanh_sai": 3,
+    "sai_thanh_dung": 5
+  },
+  "acc_bit": {
+    "conv1": {
+      "max": 82468,
+      "bit": 18
+    },
+    "conv2": {
+      "max": 149729,
+      "bit": 19
+    },
+    "conv3": {
+      "max": 100287,
+      "bit": 18
+    },
+    "fc": {
+      "max": 63673,
+      "bit": 17
+    }
+  },
+  "bo_nho": {
+    "n_w": 4968,
+    "n_b": 50,
+    "float_byte": 20072,
+    "int_byte": 5168
+  }
+}

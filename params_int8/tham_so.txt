@@ -1,0 +1,7 @@
+# Tham số lượng tử — sinh tự động bởi ptq_int8.py, KHÔNG sửa tay
+# relu=gop  bits_M0=31
+input  s=0.012728234  zp=-95
+conv1  s_w=0.00684765192  zp_vao=-95  s_ra=0.0228746134  zp_ra=-128  M=0.00381027276  M0=2094719601  shift=39
+conv2  s_w=0.00772670123  zp_vao=-128  s_ra=0.0710825153  zp_ra=-128  M=0.00248648071  M0=1366957226  shift=39
+conv3  s_w=0.00620496414  zp_vao=-128  s_ra=0.125496419  zp_ra=-128  M=0.00351455811  M0=1932148756  shift=39
+fc  s_w=0.0075791863  zp_vao=-128  s_acc=0.000951160742  (không requantize, argmax trên acc)

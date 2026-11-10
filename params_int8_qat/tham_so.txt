@@ -1,0 +1,7 @@
+# Tham số lượng tử — sinh tự động bởi qat.py --bits 8 --xuat, KHÔNG sửa tay
+# relu=gop  bits_M0=31
+input  s=0.012728234  zp=-95
+conv1  s_w=0.00682609663  zp_vao=-95  s_ra=0.0227778472  zp_ra=-128  M=0.0038144147  M0=2096996660  shift=39
+conv2  s_w=0.00772659891  zp_vao=-128  s_ra=0.0624849619  zp_ra=-128  M=0.00281660234  M0=1548443509  shift=39
+conv3  s_w=0.00621045856  zp_vao=-128  s_ra=0.118758729  zp_ra=-128  M=0.00326763573  M0=1796401742  shift=39
+fc  s_w=0.00764613405  zp_vao=-128  s_acc=0.000908045161  (không requantize, argmax trên acc)

@@ -11,28 +11,34 @@
   cách Thầy làm — tiêu chí là **có cố gắng và có kết quả**.
 - Môi trường: macOS M2, conda env `mnist` (Python 3.11), chạy CPU (MPS lỗi MPSFloatType).
   Thư mục: `~/mnist-digit-project`. GitHub: 25119104-code/khoaanh25119104.
+- **Vivado không cài được trên Mac M2** (chỉ có bản x86 Windows/Linux). MacBook Air M2, SSD 256 GB, trống 28 GiB
+  (03/11). RTL + mô phỏng làm trên Mac bằng Icarus Verilog/Verilator; synthesis/nạp board dùng máy x86 hoặc Docker.
+  Phương án đầy đủ: mục 5 của `reports/report-dot2-tuan01-20261104.md`.
 
 ## Thầy đã chốt — đừng hỏi lại, đừng làm ngược
 1. **Chưa cần tối ưu accuracy.** Không có ngưỡng phải đạt. 98,82% là chấp nhận được.
-2. **Chưa cần tối ưu hyperparameter, chưa cần quantization.** Để sau, nếu còn hứng thú.
+2. **Chưa cần tối ưu hyperparameter.** Quantization: 22/09 Thầy nói chưa cần, nhưng **07/10 Thầy giao làm PTQ + QAT,
+   rồi sang C, rồi RTL** → đã làm (tuần 6). Đường inference hiện tại là **int8**.
 3. **Tránh các phép `exp`, `sqrt`.** Trọng tâm là đưa được vào FPGA và tối ưu phép toán.
 4. **Bắt buộc có validation set**, test set chỉ chạm 1 lần cuối. (đã làm)
 5. **Params phải giảm.** (đã làm — ít hơn 41,2×)
 
 ## Cấu trúc thư mục
-Gốc có 11 file `.py` + roadmap v3 + `.gitignore`. Còn lại nằm trong thư mục con:
+Gốc có 13 file `.py` + roadmap v3 + `.gitignore`. Còn lại nằm trong thư mục con:
 
 | Thư mục | Chứa |
 |---|---|
-| `models/` | `digit_cnn.pth` (tuần 1, đóng băng), `digit_cnn_val.pth`, `small_cnn.pth`, ONNX |
+| `models/` | `digit_cnn.pth` (tuần 1, đóng băng), `digit_cnn_val.pth`, `small_cnn.pth`, `small_cnn_qat_int8.pth` / `_int4.pth` (tuần 6), ONNX |
+| `params_int8/` | Tham số PTQ int8 (cấu hình B) + `tham_so.txt` (zp, M0, shift) + `golden_int8/` (ảnh mẫu từng lớp + `fc_acc_test.txt` 10.000 ảnh) — **sinh tự động, không sửa tay, không calibrate lại trên máy khác** |
+| `params_int8_qat/` | Cùng định dạng, từ checkpoint QAT int8 (`qat.py --bits 8 --xuat`) |
 | `figures/` | 8 hình phân tích + sơ đồ Netron + 3 hình `conv_*.png` (tính 1 điểm conv, vùng đệm) |
 | `params/` | `weights.txt` (4.968) + `biases.txt` (50) + README bảng offset — **sinh tự động, không sửa tay** |
 | `golden/` | Ảnh mẫu + đầu ra PyTorch từng lớp + logit cả test set — chuẩn để so Python/C |
-| `golden_c/` | **Golden model C float32** `golden_model.c` + README. File chạy được không commit |
+| `golden_c/` | **Golden model C float32** `golden_model.c` + **int8** `golden_int8.c` + README. File chạy được không commit |
 | `docs/` | slide + 2 file Word nộp Thầy + ghi chú gặp Thầy + `tong-hop-video-thay.md` + **`on-tap-flow-7-buoc.md`** (tài liệu ôn theo slide 7 bước, 11 bài tính tay) + file này. `tien-do-on-tap.md` chỉ có trong Project |
 | `operators/` | README index + 6 file operator (công thức, mã giả, bẫy port C) |
 | `PDF/` | Bản in của `operators/*.md`, sinh bằng `tools/xuat_pdf.py` — sửa `.md` rồi chạy lại |
-| `reports/` | report tuần 1, 2, 3, 4 |
+| `reports/` | report tuần 1–6 (đợt 1) + đợt 2 tuần 1 (`report-dot2-tuan01-20261104.md`) |
 | `study/` | bài tập tự luyện + script khảo sát, KHÔNG nộp |
 | `tools/` | `xuat_pdf.py` — sinh PDF từ `operators/*.md` |
 | `archive/`, `audio/`, `data/` | roadmap cũ, file NotebookLM, MNIST |
@@ -55,12 +61,14 @@ vào `sys.path` + `os.chdir` nên chạy ở đâu cũng được. Comment và c
 | `export_params.py` | Phase 2B: trích tham số → `params/`, sinh `golden/`. Tự kiểm đọc lại khớp từng bit |
 | `inference_python.py` | Inference **vòng lặp thuần, không PyTorch**, mảng 1 chiều như C. 2 bản conv: `if` và đệm 0. Bản nháp của golden model C |
 | `make_conv_figures.py` | Vẽ 3 hình tính 1 điểm conv bằng số thật |
+| `ptq_int8.py` | PTQ int8 **số nguyên thuần** (không dùng `torch.ao`), so cấu hình A–F trên val, xuất `params_int8/`. `--chi-tham-chieu`: sinh lại `fc_acc_test.txt` từ tham số đã xuất, không calibrate lại |
+| `qat.py` | QAT fake-quant + STE, đo trên đúng đường số nguyên của `ptq_int8.py`. `--bits 8 --xuat`: xuất `params_int8_qat/` từ checkpoint, không train |
 | `study/xem_quantization.py` | Chỉ đọc — khảo sát int8/int16/Q1.7 trên checkpoint thật |
 | `study/thu_batchnorm.py` | Thí nghiệm thêm BN + gộp BN vào Conv. Kết quả: `study/thi-nghiem-batchnorm.md` |
 | `study/kiem_tra_tinh_tay.py` | Đáp án 11 bài tính tay của `docs/on-tap-flow-7-buoc.md` |
 | `study/tra-cuu-smallcnn.xlsx` | Excel tra cứu 1 điểm mọi lớp: địa chỉ in/w, dòng trong file txt, acc cộng dồn, so PyTorch |
 
-## Trạng thái (cập nhật 05/10/2026)
+## Trạng thái (cập nhật 03/11/2026)
 - **Kiến trúc đã CHỐT: `SmallCNN` — 5.018 params, test acc 98,82%.** (DigitCNN cũ: 206.922
   params, 99,05% — giữ làm mốc. Giảm 41,2 lần.)
 - Phase 1 ✅ validation set 50k/10k/10k, checkpoint theo best val acc.
@@ -71,7 +79,12 @@ vào `sys.path` + `os.chdir` nên chạy ở đâu cũng được. Comment và c
 - ✅ Gom `models.py` xong. ✅ `demo_app.py` và `error_analysis.py` đã chạy `SmallCNN`, đã test thật.
 - ✅ **Word bước 3 hết nợ** — có mục 5 (6 operator, mã giả, 2 chỗ bỏ phép toán, 3 bẫy port C)
   và mục 6.4 (biến thể padding conv1).
-- ⬜ **Phase 2E (quantization) hoãn** — Thầy nói chưa cần.
+- ✅ **Phase 2E quantization (tuần 6, 14/10)** — `ptq_int8.py` + `qat.py`. PTQ int8 98,84% (float 98,82%),
+  khác float 9 ảnh; QAT int8 98,91%. Cấu hình B: ReLU gộp vào kẹp (zp = −128), M0 31 bit, per-tensor.
+  Report `reports/report-tuan06-20261014.md`, slide `docs/slide-quantization-tuan06.pptx`.
+- ✅ **Golden model C int8 (03/11)** — `golden_c/golden_int8.c`. Khớp Python **từng bit**: ảnh mẫu 11/11 file,
+  10 acc lớp fc của 10.000/10.000 ảnh, cả PTQ (`params_int8/`) và QAT (`params_int8_qat/`). Mới chạy trên máy ảo Linux,
+  chưa chạy trên Mac. Report `reports/report-dot2-tuan01-20261104.md`.
 - ✅ **Phase 2B trích tham số** — 2 file `weights.txt` + `biases.txt` theo ý Thầy, `%.9g`, khớp từng bit.
 - ✅ **Inference Python** — khớp PyTorch từng lớp; 10.000 ảnh: 98,82%, trùng dự đoán 10.000/10.000.
 - ✅ **Report tuần 4** (`reports/report-tuan04-20260930.md`) đã commit. PDF operators đã sinh lại.
@@ -81,10 +94,9 @@ vào `sys.path` + `os.chdir` nên chạy ở đâu cũng được. Comment và c
 - ✅ Tổng hợp 9 video của Thầy (`docs/tong-hop-video-thay.md`): đang ở bước 6/7 của flow.
 - ✅ `study/tra-cuu-smallcnn.xlsx` — tra cứu 1 điểm conv1/conv2/conv3/maxpool/fc + argmax bằng số thật,
   có số dòng trong file txt; khớp PyTorch. Dùng để tự kiểm bài tính tay.
-- **Báo cáo thứ Tư 07/10**: ôn `docs/on-tap-flow-7-buoc.md`. **Tiến độ chi tiết: đọc `docs/tien-do-on-tap.md`
-  (chỉ có trong Project) trước khi trả lời câu hỏi ôn tập.** 05/10 xong mục 1–3, bài 1, 2, 3, 4, 5, 8.
-  06/10: mục 4–5, bài 6, 7, 9, 10, 11; tối soạn nháp `reports/report-tuan05-20261007.md`.
-- Chưa làm: cập nhật Word bước 3; quantization INT8 (chờ Thầy); RTL giải pháp 1 (bước 7).
+- Đợt 2 bắt đầu 01/11. Báo cáo 04/11: `reports/report-dot2-tuan01-20261104.md`.
+- Chưa làm: RTL (bước tiếp theo, bắt đầu từ khối requantize); QAT nhiều seed + đối chứng QAT (từ tuần 6);
+  cập nhật Word bước 3 với phần int8.
 
 ## Đường inference — chỉ 6 operator
 
@@ -119,8 +131,21 @@ Conv chiếm 95% tính toán nhưng 71% params; `fc` ngược lại (0,3% / 29%)
 - **Accumulator phải khởi tạo bằng `bias`, không phải 0.** Sai chỗ này lệch đúng bằng bias.
 - **`argmax` phải so sánh chặt (`>`)** để khớp `torch.argmax` khi có logit bằng nhau.
 - Python float64 vs PyTorch float32 lệch ~1e-5 — là độ chính xác, không phải sai thuật toán.
-- Rủi ro Q1.7 (để dành cho lúc thật sự làm quantization): `conv2` có max|w| = 0,9813, trần Q1.7
-  là 0,9922 — chỉ 1,1% dư địa. Accumulator `fc` ở int8 phải là int32.
+- ~~Rủi ro Q1.7~~ hết hiệu lực: int8 dùng scale per-tensor theo dải thật, không dùng Q1.7.
+
+### Phát hiện int8 (tuần 6 + 03/11)
+- **Đầu vào chip = `pixel − 128`** (đảo bit cao nhất), khớp lượng tử hoá đầy đủ ở 7.840.000/7.840.000 pixel.
+  Chuẩn hoá biến mất vào scale/zp. conv1 nhận `x = q − zp = pixel − 33` ∈ [−33, 222] (9 bit có dấu).
+- **zp = −128 ⇒ `q − zp` = đảo bit cao nhất**, ra [0, 255]. Trừ zp ở conv2, conv3, fc không tốn bộ cộng.
+- **Đệm: trừ zp trước, rồi mới đệm 0.** Đệm số nguyên 0 thẳng lên q là sai khi zp ≠ 0.
+- **ReLU gộp vào bước kẹp** (scale theo dải sau ReLU → zp = −128): kẹp `max(q, −128)` chính là ReLU.
+- **Requantize đặt SAU maxpool được, giống hệt từng bit** (hàm không giảm giao hoán với max): 10.192 → 2.496 lần
+  requantize/ảnh, kiểm 0/10.000 ảnh khác ở cả PTQ và QAT. Giá: maxpool so sánh trên acc 20 bit thay vì 8 bit.
+- **Accumulator 20 bit có dấu đủ cho MỌI ảnh** (chặn trên tính từ trọng số thật). Đo trên test: 17–19 bit.
+- **acc × M0 cần 51 bit** (20 + 31). M0 15 bit cho val bằng 31 bit (thí nghiệm D) → vừa 1 DSP48 (25 × 18).
+- **Dịch phải số âm:** Python `>>` và Verilog `>>>` là floor; C `>>` trên số âm là implementation-defined, C `/` làm tròn về 0.
+- **Golden C / RTL phải đọc tham số từ `params_int8/`**, không tự tính lại scale/M0: calibrate lại khác máy lệch M0.
+  Cần sinh lại tham chiếu thì dùng `python ptq_int8.py --chi-tham-chieu`.
 
 ## Phương pháp học của Thầy — 4 bước, mỗi bước có sản phẩm
 1. Triển khai từng phần (AI first) → code
@@ -137,14 +162,15 @@ khó cho FPGA → xác định model inference → trích tham số → golden m
 23/09: Thầy xác nhận đi full flow. Mức cụ thể (RTL, synthesis, board thật) và lịch cho từng
 bước vẫn nên chốt khi gặp lần tới.
 
-## Câu hỏi đang chờ Thầy (đã đưa vào report tuần 4)
+## Câu hỏi đang chờ Thầy
 1. ~~Trọn flow đi xa tới đâu~~ → 23/09: đi full flow. Còn hỏi: lịch từng bước sau golden model C.
-2. **Golden model C verify tới mức nào thì coi là đạt?** Ngưỡng tuyệt đối `1e-4`, sai số tương đối,
-   hay chỉ cần trùng dự đoán trên 10.000 ảnh test?
-3. **Chuẩn hoá ảnh làm ở đâu?** PC xử lý trước rồi gửi float vào, hay chip nhận `uint8` và tự làm
-   phép `a·x + b`?
-4. Board FPGA mục tiêu là gì? (chưa chặn việc gì lúc này)
-5. **Quantization làm trước hay sau golden C?** Video Step2 làm int8 trước golden C; Thầy nói chưa cần quantization.
+2. ~~Golden model C verify tới mức nào~~ → bản int8 khớp **từng bit** (mức cao nhất), nên không cần ngưỡng.
+3. ~~Chuẩn hoá ảnh làm ở đâu~~ → sau lượng tử, chip nhận `uint8` và dùng `pixel − 128` (tuần 6).
+4. **Board FPGA mục tiêu** — giờ đã chặn việc: Kria bắt buộc Vivado; Zynq-7000 còn openXC7 dự phòng.
+5. ~~Quantization trước hay sau golden C~~ → 07/10 Thầy giao PTQ/QAT trước, rồi C.
+6. **Phương án Vivado trên Mac** (đề xuất: mô phỏng trên Mac ngay, synthesis ở máy x86/Docker) — hỏi 04/11.
+7. **RTL dùng tham số PTQ hay QAT** (đề xuất PTQ) — hỏi 04/11.
+8. Các câu tuần 6 (per-tensor/per-channel, ReLU gộp, đầu vào `uint8`, bề rộng M0, bỏ Model Composer) — chưa ghi nhận câu trả lời.
 
 ## Cách Claude hỗ trợ
 1. Xác định đang ở phase nào theo v3 trước khi trả lời.
