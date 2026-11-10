@@ -46,3 +46,7 @@ golden_c/golden_int8
 # ===== RTL: file mô phỏng sinh lại bằng chay.sh =====
 rtl/**/sim
 rtl/**/*.vcd
+
+# Ghi chú cũ, không theo dõi
+docs/ke-hoach-bao-cao-0710.docx
+chay-golden.command
