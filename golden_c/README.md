@@ -35,7 +35,7 @@ Cần có:
 - `golden/logits_pytorch.txt`: chỉ để đếm số ảnh khác float32. Số thực chỉ xuất hiện ở phần kiểm tra này.
 - `data/MNIST/raw/t10k-*` (file raw chưa nén).
 
-### Kết quả (máy ảo Linux arm64, gcc; chưa chạy trên Mac)
+### Kết quả (máy ảo Linux arm64 gcc, và Mac M2 clang 10/11: ra y hệt)
 
 | Kiểm tra | PTQ (`params_int8/`) | QAT (`params_int8_qat/`) |
 |---|---|---|

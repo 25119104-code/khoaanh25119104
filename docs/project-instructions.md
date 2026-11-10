@@ -87,8 +87,8 @@ vào `sys.path` + `os.chdir` nên chạy ở đâu cũng được. Comment và c
   khác float 9 ảnh; QAT int8 98,91%. Cấu hình B: ReLU gộp vào kẹp (zp = −128), M0 31 bit, per-tensor.
   Report `reports/report-tuan06-20261014.md`, slide `docs/slide-quantization-tuan06.pptx`.
 - ✅ **Golden model C int8 (03/11)** — `golden_c/golden_int8.c`. Khớp Python **từng bit**: ảnh mẫu 11/11 file,
-  10 acc lớp fc của 10.000/10.000 ảnh, cả PTQ (`params_int8/`) và QAT (`params_int8_qat/`). Mới chạy trên máy ảo Linux,
-  chưa chạy trên Mac. Report `reports/report-dot2-tuan01-20261104.md`.
+  10 acc lớp fc của 10.000/10.000 ảnh, cả PTQ (`params_int8/`) và QAT (`params_int8_qat/`). Đã chạy lại trên Mac 10/11:
+  ra y hệt máy ảo Linux. Report `reports/report-dot2-tuan01-20261104.md`.
 - ✅ **Phase 2B trích tham số** — 2 file `weights.txt` + `biases.txt` theo ý Thầy, `%.9g`, khớp từng bit.
 - ✅ **Inference Python** — khớp PyTorch từng lớp; 10.000 ảnh: 98,82%, trùng dự đoán 10.000/10.000.
 - ✅ **Report tuần 4** (`reports/report-tuan04-20260930.md`) đã commit. PDF operators đã sinh lại.
