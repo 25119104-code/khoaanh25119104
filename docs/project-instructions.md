@@ -14,6 +14,9 @@
 - **Vivado không cài được trên Mac M2** (chỉ có bản x86 Windows/Linux). MacBook Air M2, SSD 256 GB, trống 28 GiB
   (03/11). RTL + mô phỏng làm trên Mac bằng Icarus Verilog/Verilator; synthesis/nạp board dùng máy x86 hoặc Docker.
   Phương án đầy đủ: mục 5 của `reports/report-dot2-tuan01-20261104.md`.
+- **Công cụ RTL đã cài (10/11):** Icarus Verilog 13 + Surfer 0.7 (brew). Chạy bài: `./chay.sh <thư mục bài>` trong
+  `rtl/bai-tap-nhap-mon/`. Chưa cài Yosys. **Đang là prelab, chưa vào lab: mọi việc làm trên máy cá nhân**, không có
+  máy lab để cài Vivado. Mua SSD ngoài / Docker Vivado: **hoãn**, chờ Thầy cho biết khi nào bắt buộc cần Vivado.
 
 ## Thầy đã chốt — đừng hỏi lại, đừng làm ngược
 1. **Chưa cần tối ưu accuracy.** Không có ngưỡng phải đạt. 98,82% là chấp nhận được.
@@ -35,10 +38,11 @@ Gốc có 13 file `.py` + roadmap v3 + `.gitignore`. Còn lại nằm trong thư
 | `params/` | `weights.txt` (4.968) + `biases.txt` (50) + README bảng offset — **sinh tự động, không sửa tay** |
 | `golden/` | Ảnh mẫu + đầu ra PyTorch từng lớp + logit cả test set — chuẩn để so Python/C |
 | `golden_c/` | **Golden model C float32** `golden_model.c` + **int8** `golden_int8.c` + README. File chạy được không commit |
-| `docs/` | slide + 2 file Word nộp Thầy + ghi chú gặp Thầy + `tong-hop-video-thay.md` + **`on-tap-flow-7-buoc.md`** (tài liệu ôn theo slide 7 bước, 11 bài tính tay) + file này. `tien-do-on-tap.md` chỉ có trong Project |
+| `docs/` | slide + 2 file Word nộp Thầy + ghi chú gặp Thầy + `tong-hop-video-thay.md` + **`on-tap-flow-7-buoc.md`** (tài liệu ôn theo slide 7 bước, 11 bài tính tay) + **`on-tap-int8-ptq-qat-c.md`** (ôn PTQ/QAT/golden C int8, có tự kiểm + đáp án) + file này. `tien-do-on-tap.md` chỉ có trong Project |
 | `operators/` | README index + 6 file operator (công thức, mã giả, bẫy port C) |
 | `PDF/` | Bản in của `operators/*.md`, sinh bằng `tools/xuat_pdf.py` — sửa `.md` rồi chạy lại |
 | `reports/` | report tuần 1–6 (đợt 1) + đợt 2 tuần 1 (`report-dot2-tuan01-20261104.md`) |
+| `rtl/bai-tap-nhap-mon/` | 10 bài nhập môn Verilog Thầy giao 07/11. Mỗi bài 1 thư mục: RTL, testbench tự kiểm PASS/FAIL, `report.md`, `song.png`. `chay.sh` + `tools/ve_song.py` (VCD → PNG). `sim`, `*.vcd` không commit |
 | `study/` | bài tập tự luyện + script khảo sát, KHÔNG nộp |
 | `tools/` | `xuat_pdf.py` — sinh PDF từ `operators/*.md` |
 | `archive/`, `audio/`, `data/` | roadmap cũ, file NotebookLM, MNIST |
@@ -68,7 +72,7 @@ vào `sys.path` + `os.chdir` nên chạy ở đâu cũng được. Comment và c
 | `study/kiem_tra_tinh_tay.py` | Đáp án 11 bài tính tay của `docs/on-tap-flow-7-buoc.md` |
 | `study/tra-cuu-smallcnn.xlsx` | Excel tra cứu 1 điểm mọi lớp: địa chỉ in/w, dòng trong file txt, acc cộng dồn, so PyTorch |
 
-## Trạng thái (cập nhật 03/11/2026)
+## Trạng thái (cập nhật 10/11/2026)
 - **Kiến trúc đã CHỐT: `SmallCNN` — 5.018 params, test acc 98,82%.** (DigitCNN cũ: 206.922
   params, 99,05% — giữ làm mốc. Giảm 41,2 lần.)
 - Phase 1 ✅ validation set 50k/10k/10k, checkpoint theo best val acc.
@@ -95,7 +99,16 @@ vào `sys.path` + `os.chdir` nên chạy ở đâu cũng được. Comment và c
 - ✅ `study/tra-cuu-smallcnn.xlsx` — tra cứu 1 điểm conv1/conv2/conv3/maxpool/fc + argmax bằng số thật,
   có số dòng trong file txt; khớp PyTorch. Dùng để tự kiểm bài tính tay.
 - Đợt 2 bắt đầu 01/11. Báo cáo 04/11: `reports/report-dot2-tuan01-20261104.md`.
-- Chưa làm: RTL (bước tiếp theo, bắt đầu từ khối requantize); QAT nhiều seed + đối chứng QAT (từ tuần 6);
+- ✅ **GitHub đã đồng bộ (10/11)**: commit `fd4666a` (INT8, golden C int8, report, Bài 1) + `e1848b7`. Repo sạch.
+- **Đang ở: phần Vi mạch (IC).** 07/11 Thầy giao 10 bài nhập môn Verilog, deadline ≤ 1 tuần, mỗi bài có report +
+  "học được gì", **làm chậm, hiểu rõ rồi mới qua bài mới**. ✅ Bài 1 PASS 8/8 (chạy trên Mac 10/11); chờ user trả lời
+  4 câu tự kiểm rồi mới qua Bài 2.
+- 09/11 Thầy nhắn (cả nhóm): chuyển INT8 bằng PTQ rồi QAT + PPTX ý nghĩa và kết quả + đồng bộ GitHub → **đã có đủ**
+  (slide nộp: `docs/slide-quantization-tuan06.pptx`; slide 9–10 hơi cũ, user chọn không làm PPTX mới, ôn bằng chép tay).
+- Gặp Thầy dự kiến tuần sau (16/11 trở đi), lịch chưa chốt.
+- **Lịch học tuần 10–15/11:** T3 Bài 1 + ôn INT8 mục 1–4 + đọc `ptq_int8.py`; T4 ôn mục 5–7 + `qat.py` +
+  `golden_int8.c`; T5 Bài 2–3; T6 Bài 4–5; T7 Bài 6–7; CN Bài 8–10.
+- Chưa làm: RTL cho CNN (sau 10 bài, bắt đầu từ khối requantize); QAT nhiều seed + đối chứng QAT (từ tuần 6);
   cập nhật Word bước 3 với phần int8.
 
 ## Đường inference — chỉ 6 operator
@@ -171,6 +184,9 @@ bước vẫn nên chốt khi gặp lần tới.
 6. **Phương án Vivado trên Mac** (đề xuất: mô phỏng trên Mac ngay, synthesis ở máy x86/Docker) — hỏi 04/11.
 7. **RTL dùng tham số PTQ hay QAT** (đề xuất PTQ) — hỏi 04/11.
 8. Các câu tuần 6 (per-tensor/per-channel, ReLU gộp, đầu vào `uint8`, bề rộng M0, bỏ Model Composer) — chưa ghi nhận câu trả lời.
+9. **Phần IC tới bước nào thì bắt buộc phải có Vivado** (tổng hợp, timing, nạp board)? Giai đoạn này là **prelab,
+   chưa vào lab** → chỉ có máy cá nhân. Nếu bắt buộc thì phương án là Docker + SSD ngoài (APFS, ≥ 256 GB, nên 500 GB)
+   hoặc mượn máy x86 của bạn. Hỏi buổi gặp tới, cùng với câu 4 (board).
 
 ## Cách Claude hỗ trợ
 1. Xác định đang ở phase nào theo v3 trước khi trả lời.
@@ -189,6 +205,9 @@ bước vẫn nên chốt khi gặp lần tới.
     bản Word lệch nhau vì việc này. Không chạy hai phiên Claude song song trên cùng repo.
 11. Code và tài liệu viết **tiếng Việt có dấu** — kể cả comment, chuỗi in, README sinh tự động.
 12. Không để lại `.git/index.lock` — chỉ chạy `git --no-optional-locks status`, không tự commit.
+13. **Bài tập RTL — nhịp mỗi bài:** user lập bảng chân trị / sơ đồ trạng thái trước → Claude viết RTL + testbench tự
+    kiểm (bảng mong đợi viết tay theo đề, không chép biểu thức của mạch) → user chạy `chay.sh` trên Mac → user trả lời
+    câu tự kiểm → commit. **Không làm nhiều bài một lượt** (yêu cầu của Thầy: hiểu rõ rồi mới qua bài mới).
 
 ## Ràng buộc học thuật
 - Nộp tiến độ thứ Tư hàng tuần. Không có tiến độ → bị loại khỏi nhóm.
