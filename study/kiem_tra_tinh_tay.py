@@ -102,7 +102,7 @@ def bai_6():
     tieu_de(6, "Đổi trọng số sang fixed-point Q1.7 (bước 4)")
     W = np.loadtxt("params/weights.txt")
     for v in [W[0], -0.7234, 1.03]:
-        q = int(np.clip(np.round(v * 128), -128, 127))
+        q = int(np.clip(np.floor(v * 128 + 0.5), -128, 127))   # làm_tròn của project, không dùng np.round
         print(f"  w = {v:+.6f} → ×128 = {v * 128:+9.3f} → làm tròn/kẹp q = {q:+4d} → đọc lại q/128 = {q / 128:+.7f}"
               f" ; sai số {q / 128 - v:+.6f}")
     print("  Trần Q1.7 = 127/128 = 0.9921875 ; sàn = −128/128 = −1. Bước nhảy = 1/128 = 0.0078125")

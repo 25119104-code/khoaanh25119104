@@ -296,7 +296,7 @@ static void cap_nhat_max(int lop, const int32_t *a, int n)
 }
 
 /* Đầu vào: chip nhận pixel uint8 và dùng q = p − 128 (đảo bit cao nhất).
- * ptq_int8.py đã kiểm: lượng tử hoá đầy đủ round(x/s_in) + zp_in cho ra đúng p − 128
+ * ptq_int8.py đã kiểm: lượng tử hoá đầy đủ floor(x/s_in + 0,5) + zp_in cho ra đúng p − 128
  * ở cả 7.840.000 pixel test, nên trên chip không cần chuẩn hoá bằng số thực. */
 static void dau_vao(const unsigned char *px, int8_t *q)
 {

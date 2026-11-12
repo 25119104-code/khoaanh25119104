@@ -78,7 +78,7 @@ Vì sao có M0 và shift:
 | acc (từ `01_conv1_acc.txt`) | | 21.313 |
 | Nhân M0 | 21.313 × 2.094.719.601 | 44.644.758.856.113 |
 | Cộng 2^38 (làm tròn) | + 274.877.906.944 | 44.919.636.763.057 |
-| Dịch phải 39 bit | ÷ 2^39, làm tròn xuống | 81 (số thực: 81,208) |
+| Dịch phải 39 bit | ÷ 2^39 rồi floor: 81,708 → 81 | **81** (= 81,208 làm tròn gần nhất) |
 | Cộng zp_ra | 81 + (−128) | **−47** |
 | Kẹp [−128, 127] | | −47, khớp `02_relu1.txt` ✓ |
 
@@ -153,8 +153,8 @@ Chọn B vì A và B chỉ chênh 1 ảnh mà B bỏ được bộ so sánh ReLU
     x_fq = x + (lượng_tử(x) − x).detach()
 
 - **Forward:** ra đúng giá trị đã làm tròn về lưới int (fake-quant).
-- **Backward:** STE (Straight-Through Estimator). Đạo hàm của round() bằng 0 gần như khắp nơi, nên coi round như
-  phép đồng nhất, đạo hàm = 1, gradient chảy qua như không có round.
+- **Backward:** STE (Straight-Through Estimator). Đạo hàm của làm_tròn() bằng 0 gần như khắp nơi, nên coi làm_tròn như
+  phép đồng nhất, đạo hàm = 1, gradient chảy qua như không có làm_tròn.
 - Dải sau ReLU cập nhật bằng trung bình trượt (EMA, momentum 0,01).
 - Train xong, đưa trọng số và dải học được vào **đúng đường số nguyên của PTQ** để đo, vì chip chạy số nguyên chứ
   không chạy fake-quant.

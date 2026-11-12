@@ -80,7 +80,7 @@ do_mot_kieu("B. int8 weight-only (bảng 3)", lambda x: model_i8(x))
 #    xảy ra khi logit trở thành số nguyên thay vì số thực.
 def ve_luoi_8bit(z):
     scale = z.abs().amax(dim=1, keepdim=True) / 127.0
-    return torch.round(z / scale) * scale
+    return torch.floor(z / scale + 0.5) * scale   # làm_tròn của project, không dùng torch.round
 
 do_mot_kieu("C. ép LOGIT về lưới 8-bit (mô phỏng)", lambda x: model(x), lam_tron=ve_luoi_8bit)
 

@@ -12,6 +12,8 @@ import copy
 import os
 import sys
 
+import math
+
 import torch
 
 # Python đặt THƯ MỤC CHỨA SCRIPT (study/) vào sys.path, không phải thư mục
@@ -36,7 +38,7 @@ def quant_deq(w, bits):
     scale = w.abs().max().item() / qmax
     if scale == 0:
         return w.clone(), 0.0
-    q = torch.clamp(torch.round(w / scale), -qmax, qmax)
+    q = torch.clamp(torch.floor(w / scale + 0.5), -qmax, qmax)   # làm_tròn của project, không dùng torch.round
     return q * scale, scale
 
 
@@ -48,7 +50,7 @@ def quant_deq_fixed(w, frac_bits=7):
     Đổi lại: không khít khoảng giá trị bằng cách trên.
     """
     scale = 1.0 / (2 ** frac_bits)
-    q = torch.clamp(torch.round(w / scale), -128, 127)
+    q = torch.clamp(torch.floor(w / scale + 0.5), -128, 127)     # làm_tròn của project
     return q * scale, scale
 
 
@@ -103,7 +105,7 @@ if __name__ == "__main__":
     for v in w:
         v = v.item()
         raw = v / scale
-        q = max(-qmax, min(qmax, round(raw)))
+        q = max(-qmax, min(qmax, math.floor(raw + 0.5)))   # làm_tròn của project, không dùng round()
         back = q * scale
         print(f"{v:>16.6f}{raw:>14.2f}{q:>13d}{back:>13.6f}{back - v:>+13.6f}")
     print("-" * 78)
