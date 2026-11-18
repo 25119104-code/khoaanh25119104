@@ -116,6 +116,22 @@ Cột "Mục" chỉ chỗ đọc trong `docs/on-tap-int8-ptq-qat-c.md`.
 | **Calibrate** | Chạy model float qua một ít ảnh để đo min/max từng lớp → tính scale, zp | 1.000 ảnh **val**, không dùng test | 5 |
 | **Cấu hình A–F** | 6 cách lượng tử đem so trên val | Chọn **B** | 5 |
 
+### D1b. Từ trong tài liệu chép tay ↔ thuật ngữ chuẩn
+
+Tài liệu chép tay dùng hình ảnh "cây thước" cho dễ hiểu. Khi đọc tài liệu ngoài hoặc trả lời Thầy, dùng cột thuật ngữ chuẩn.
+
+| Cách gọi trong chép tay | Thuật ngữ chuẩn (tiếng Anh) | Ký hiệu |
+|---|---|---|
+| Cây thước | **Tham số lượng tử hoá** / **quantization parameters** (qparams) = cặp (scale, zero-point) — khác "tham số model" (trọng số, bias); lưới các mức gọi là **quantization grid** | (s, zp) |
+| Độ dài 1 nấc | **Scale** (step size) | s |
+| Nấc của số thực 0 | **Zero-point** | zp |
+| Nấc | **Quantization level** / integer level | q |
+| Thước đối xứng / bất đối xứng | **Symmetric / asymmetric (affine) quantization** | |
+| Thước của acc | **Accumulator scale** (= s_in · s_w) | s_in·s_w |
+| Tỷ lệ 2 thước | **Requantization multiplier** / rescale factor | M |
+| M viết bằng số nguyên + dịch | **Fixed-point multiplier** (M0) + **right shift** | M0, shift |
+| Cất / đọc | **Quantize / dequantize** | |
+
 ### D2. Công thức `r = s · (q − zp)`
 
 | Thuật ngữ | Giải thích | Ví dụ thật | Mục |
@@ -131,6 +147,7 @@ Cột "Mục" chỉ chỗ đọc trong `docs/on-tap-int8-ptq-qat-c.md`.
 | **Per-tensor** | Một scale cho **cả** tensor (cả lớp) | Project dùng kiểu này | — |
 | **Per-channel** | Mỗi kênh ra một scale riêng. Chính xác hơn, tốn thêm tham số và phần cứng | Chưa dùng, câu hỏi chờ Thầy | — |
 | **Bias int32** | Scale = s_vào × s_w, zp = 0 → cộng thẳng vào acc | | 2 |
+| **q_b** (bias đã quantize) | Bias đổi sang số nguyên trên thước của acc: `q_b = làm_tròn( bias / (s_in · s_w) )`, int32. Là giá trị **khởi tạo acc** | conv1 kênh 0: 0,401263 / 0,0000871585 = 4.603,83 → **4.604** (`conv1_b.txt` dòng 1); cần 14 bit → không vừa int8 | 2, 3 |
 
 ### D3. Một lớp chạy bằng số nguyên
 

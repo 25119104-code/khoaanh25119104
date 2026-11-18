@@ -4,6 +4,8 @@
 Mỗi bước có dòng **✍️ Chép** ở cuối — chỉ cần chép các dòng đó là đủ một trang A4.
 Thứ tự đọc: Bước 0 → 9, mỗi bước dựa trên bước trước.
 
+
+> **Quy ước:** "thước" = **tham số lượng tử hoá** (*quantization parameters*) = cặp **scale** (độ dài 1 nấc) + **zero-point** (nấc của số thực 0). Lần đầu xuất hiện trong mỗi bước, thuật ngữ chuẩn ghi trong ngoặc.
 ---
 
 ## Bước 0 — Mục tiêu
@@ -36,7 +38,7 @@ và trên chip **không còn một phép float nào** (video tổng quan trên Y
 
 ---
 
-## Bước 2 — Cây thước: q, s, zp, r
+## Bước 2 — Cây thước (quantization parameters: scale + zero-point): q, s, zp, r
 
 Mỗi tensor (input, trọng số, output mỗi lớp) có **một cây thước 256 nấc**, mô tả bằng 2 số:
 
@@ -91,6 +93,19 @@ Quantize làm 1 lần trên máy tính; dequantize chỉ để người kiểm, 
 
 **Hệ quả — chuẩn hoá biến mất:**
 
+"Chuẩn hoá" ở đây là **chuẩn hoá ảnh đầu vào** `(pixel/255 − 0,1307) / 0,3081` (mean, std của MNIST), làm 1 lần trước khi
+ảnh vào model. **Không phải BatchNorm** — BatchNorm là một lớp *bên trong* mạng, và SmallCNN không có BatchNorm.
+
+| | Chuẩn hoá đầu vào | BatchNorm |
+|---|---|---|
+| Ở đâu | Trước model, trên ảnh | Lớp bên trong mạng, sau conv |
+| Tham số | 2 hằng số cố định: 0,1307 và 0,3081 | γ, β học được + mean/var chạy, mỗi kênh một bộ |
+| Trong SmallCNN | **Có** | **Không** (thí nghiệm `study/thu_batchnorm.py`: không tăng acc, nên bỏ) |
+| Lúc inference int8 | Biến mất vào s_in, zp_in → chip nhận pixel − 128 | Nếu có thì gộp (fold) vào trọng số + bias conv |
+
+Cả hai cùng "biến mất" khi inference nhưng theo hai cách khác nhau: chuẩn hoá đầu vào bị **hút vào thước input (input scale s_in, zero-point zp_in)**,
+BatchNorm bị **gộp vào conv**.
+
     q_in = pixel − 128      (đảo bit cao nhất, không tốn phép tính)
     x    = q_in − zp_in = pixel − 33      ∈ [−33, 222] → bộ nhân 9 bit có dấu
 
@@ -129,7 +144,15 @@ Trọng số cân quanh 0 → đặt số 0 ngay nấc 0 → **zp_w = 0**. Dùng
     max|w| conv1 = 0,869651794
     s_w = max|w| / 127 = 0,006848
 
-Ví dụ: 0,3618 / 0,006848 = 52,83 → **q_w = 53**.
+Công thức quantize trọng số = công thức gốc ở Bước 2 `q = làm_tròn(r / s) + zp`, thay:
+**r → w** (số thực ở đây chính là trọng số), **s → s_w**, **zp → 0**, **q → q_w**, rồi kẹp về [−127, 127]:
+
+    q_w = kẹp( làm_tròn(w / s_w), −127, 127 )        (ptq_int8.py dòng 117)
+    w   = s_w · q_w                                   (dequantize, zp = 0 nên không còn "− zp")
+
+Ví dụ: w = 0,361772 (`params/weights.txt` dòng 6 = kernel kênh 0, ô (1,2))
+→ 0,361772 / 0,006848 = 52,83 → làm_tròn = floor(52,83 + 0,5) = **q_w = 53** (`conv1_w.txt` dòng 6).
+Dequantize lại: 0,006848 × 53 = 0,3629 (sai số lượng tử 0,0012).
 
 Vì sao zp_w = 0: tích `(q_in − zp_in)·(q_w − zp_w)` còn `(q_in − zp_in)·q_w` → **mỗi MAC bớt một phép trừ**.
 
@@ -179,7 +202,7 @@ s_w per-tensor: max|w| trên cả 72 trọng số conv1 (số lớn nhất ở k
 
 ---
 
-## Bước 5 — Thước output sau ReLU (bất đối xứng)
+## Bước 5 — Thước output (output scale s_out, zero-point zp_out) sau ReLU (bất đối xứng)
 
 Sau ReLU chỉ còn số ≥ 0: dải conv1 = [0; 5,833] — **lệch hẳn một phía**.
 
@@ -250,7 +273,7 @@ lo = 0, zp = −128 = uint8 trá hình.
 
 ## Bước 6 — Nhân một cặp: tách số nguyên ra
 
-Nhắc lại ký hiệu (từ Bước 3): **x = q_in − zp_in** = số nấc tính từ số 0 trên thước input.
+Nhắc lại ký hiệu (từ Bước 3): **x = q_in − zp_in** = số nấc tính từ số 0 trên thước input (input scale s_in, zero-point zp_in).
 Ở conv1: x = q_in + 95 = pixel − 33. Từ Bước 2: r_in = s_in · (q_in − zp_in) = **s_in · x**.
 
     r_in · r_w = (s_in · x) · (s_w · q_w) = (s_in · s_w) · (x · q_w)
@@ -262,7 +285,7 @@ Nhắc lại ký hiệu (từ Bước 3): **x = q_in − zp_in** = số nấc t�
 
 **Nhìn bằng số thực — vì sao chia cho thước lại ra đúng số nguyên**
 
-s_in = 0,012728234 · s_w = 0,00684765192 · thước của tích s_in · s_w = 0,0000871585
+s_in = 0,012728234 · s_w = 0,00684765192 · thước của tích (accumulator scale) s_in · s_w = 0,0000871585
 
 | Ô | x | r_in = s_in · x | q_w | r_w = s_w · q_w | Tích thực r_in · r_w | ÷ 0,0000871585 | x · q_w (chip) |
 |---|---|---|---|---|---|---|---|
@@ -323,7 +346,7 @@ Ví dụ conv1, kênh 0, hàng 7, cột 6 (dòng 203 trong file — file đánh 
 
 acc **khởi tạo bằng bias** rồi cộng dồn. Thanh ghi acc **20 bit có dấu** là đủ cho mọi ảnh.
 
-✍️ **Chép:** acc = q_b + Σ x·q_w, cùng thước s_in·s_w. Bias đổi về thước này → số lớn (4.604) → int32.
+✍️ **Chép:** acc = q_b + Σ x·q_w, cùng thước s_in·s_w (accumulator scale). Bias đổi về thước này → số lớn (4.604) → int32.
 Ví dụ: 4.604 + 16.709 = 21.313 ↔ 1,8576. acc khởi tạo = bias, 20 bit.
 
 **Hỏi thêm — vì sao bias giữ int32, không ép int8?**
@@ -339,27 +362,53 @@ Ví dụ: 4.604 + 16.709 = 21.313 ↔ 1,8576. acc khởi tạo = bias, 20 bit.
 
    → Lớp nào cũng vượt [−128, 127]. Ép int8 thì 4.604 bị kẹp còn 127: bias 0,40 chỉ còn 0,011.
 3. **Dùng int8 với thước riêng cho bias?** Được, nhưng trước khi cộng phải đổi thước → thêm nhân + dịch mỗi điểm ra → mất lợi.
-4. **Vì sao 32 bit dù 14 bit đủ?** Khớp kiểu acc int32 trong phần mềm (quy ước TFLite), cộng thẳng không ép kiểu.
-   Chỉ tốn 50 × 4 = 200 byte.
+4. **Vì sao 32 bit dù 14 bit đủ?** Bias (q_b) và acc là **hai thứ khác nhau nhưng cùng kiểu int32**:
+   q_b là **tham số cố định** (lưu trong file/ROM, cần 14 bit), còn acc là **thanh ghi cộng dồn** (bắt đầu = q_b,
+   cộng thêm 9/72/144 tích, cần 20 bit). Trong C, acc phải là int32 (không có kiểu 20 bit), nên cho q_b cùng kiểu
+   int32 để viết thẳng `acc = q_b` không phải ép kiểu (quy ước TFLite). Chỉ tốn 50 × 4 = 200 byte.
 5. **Hệ quả:** bộ nhớ giảm 3,88× chứ không phải 4× (Bước 1).
-6. **Ghi chú RTL:** phần cứng không bị buộc 32 bit — ROM bias lưu 14 bit, mở rộng dấu khi nạp vào acc 20 bit.
+6. **Ghi chú RTL:** phần cứng tự chọn độ rộng, không bị buộc 32 bit.
+   - **ROM bias 14 bit:** 50 bias nằm trong [−2.154; 4.604], vừa 14 bit có dấu (±8.191). Tiết kiệm 50 × 18 = 900 bit so với 32 bit.
+   - **Mở rộng dấu (sign extension)** khi nạp bias 14 bit vào acc 20 bit: chép **bit dấu** (bit cao nhất) vào 6 bit trống phía trên, để giữ nguyên giá trị.
+
+     | Bias | 14 bit (ROM) | 20 bit đúng (mở rộng dấu) | Sai: đệm 0 phía trên |
+     |---|---|---|---|
+     | 4.604 | `01000111111100` | `000000 01000111111100` = 4.604 | `000000 01000111111100` = 4.604 (tình cờ đúng) |
+     | −819 | `11110011001101` | `111111 11110011001101` = −819 | `000000 11110011001101` = **15.565** — sai |
+
+     Số dương thì đệm 0 hay đệm bit dấu đều ra như nhau; **số âm mà đệm 0 thì thành số dương lớn**.
+   - Verilog: khai báo `signed` thì gán sang thanh ghi rộng hơn tự mở rộng dấu; hoặc viết tay `{{6{b[13]}}, b}`.
 
 ✍️ **Chép:** Bias cộng thẳng vào acc → cùng thước s_in·s_w (rất mịn) → số lớn (4.604, cần 14 bit) → int32.
 Ép int8 thì kẹp 127 (0,40 → 0,011). 32 bit là quy ước khớp acc, chỉ 200 byte. RTL lưu 14 bit là đủ.
 
 ---
 
-## Bước 8 — Requantize: đổi acc sang thước output
+## Bước 8 — Requantize: đổi acc sang thước output (output scale s_out, zero-point zp_out)
 
-Muốn: **dequantize** acc ra số thực rồi **quantize** vào thước output. Nhưng chip không có số thực → gộp thành một phép số nguyên.
+**Vì sao cần bước này.** Lớp sau cần input là **int8 trên thước output** (output scale s_out = 0,022875, zero-point zp_out = −128).
+Nhưng acc đang nằm trên thước rất mịn s_in · s_w (accumulator scale) = 0,0000871585 (nên mới ra số lớn 21.313). Phải **đổi thước** (rescale / requantize).
 
-    q_out = r / s_out + zp_out
-         = acc · (s_in · s_w / s_out) + zp_out
-         = acc · M + zp_out
+**Cách nghĩ đơn giản nhất — 2 bước, cả 2 đều có số thực:**
 
-**M = tỷ lệ thước cũ / thước mới** = 0,0000871585 / 0,022875 = 0,00381027 (lấy từ `tham_so.txt`).
+| Bước | Phép tính | Kết quả | Có số thực? |
+|---|---|---|---|
+| ① Dequantize acc | r = (s_in · s_w) · acc = 0,0000871585 × 21.313 | 1,8576 | Có |
+| ② Quantize vào thước output | q_out = làm_tròn(r / s_out) + zp_out = làm_tròn(1,8576 / 0,022875) − 128 = làm_tròn(81,21) − 128 | −47 | Có |
 
-M là số thực → viết thành **M0 / 2^shift**:
+**Gộp 2 bước thành 1** — thay r của ① vào ②:
+
+    q_out = làm_tròn( (s_in · s_w) · acc / s_out ) + zp_out
+          = làm_tròn( acc · (s_in · s_w / s_out) ) + zp_out
+          = làm_tròn( acc · M ) + zp_out          với  M = s_in · s_w / s_out = 0,00381027
+
+Ba số s_in, s_w, s_out đều **cố định** → M tính sẵn **một lần trên máy tính**. Chip chỉ còn nhân acc với một hằng số.
+Giống đổi tiền VND → USD → EUR: thay vì đổi 2 lần, nhân thẳng một tỷ giá gộp VND → EUR.
+
+**M = tỷ lệ thước cũ / thước mới (requantization multiplier)** = 0,0000871585 / 0,022875 = 0,00381027 (lấy từ `tham_so.txt`):
+1 nấc của acc bằng 0,0038 nấc của thước output.
+
+Nhưng M vẫn là số thực → viết thành **M0 / 2^shift** (số nguyên chia lũy thừa 2):
 
     M ≈ 2.094.719.601 / 2^39       (M0 31 bit, shift = 39)
 
@@ -368,7 +417,7 @@ Làm tròn: cộng nửa nấc 2^38 trước khi dịch (giống +0,5 rồi bỏ
 
 | Bước | Phép tính | Kết quả |
 |---|---|---|
-| Nhân M0 | 21.313 × 2.094.719.601 | 44.644.758.856.113 (51 bit → cần biến 64 bit) |
+| Nhân M0 | 21.313 × 2.094.719.601 | 44.644.758.856.113 (ví dụ này 47 bit; xấu nhất 20 + 31 = 51 bit → vượt int32, cần biến 64 bit) |
 | Làm tròn | + 2^38 | 44.919.636.763.057 |
 | Dịch 39 | 81,208 + 0,5 → bỏ lẻ | **81** |
 | + zp_out | 81 − 128 | **−47** |
@@ -428,6 +477,7 @@ Lấy M (9 chữ số) × 2^39 tự bấm máy sẽ lệch M0 vài đơn vị (v
 
 ✍️ **Chép:** Dịch phải n bit = chia 2^n. acc·M0 >> 39 = acc·M0/2^39 = acc·M.
 shift: tăng tới khi M·2^shift ∈ [2^30, 2^31) → 39, M0 = làm_tròn(M·2^39). Cả 3 lớp shift = 39.
+39 là **do dữ liệu** (M cả 3 lớp ∈ [2^−9, 2^−8) → shift = 31 + 8), không phải hằng số. M0 15 bit → shift = 23. RTL đọc shift từ file, không viết cứng.
 Acc âm: −4.247 → −15,68 → floor −16 → −144 → kẹp −128.
 
 ✍️ **Chép:** Requantize = dequantize + quantize gộp bằng số nguyên. M = s_in·s_w/s_out (tỷ lệ 2 thước) ≈ M0/2^shift.
@@ -466,15 +516,15 @@ Trong `tham_so.txt` code đặt tên tiếng Việt: `zp_vao` = zp_in, `s_ra` = 
 
 | Ký hiệu | Nghĩa | conv1 | Lấy ở đâu |
 |---|---|---|---|
-| s_in, zp_in | Thước input | 0,012728 / −95 | `tham_so.txt` |
+| s_in, zp_in | Thước input (input scale s_in, zero-point zp_in) | 0,012728 / −95 | `tham_so.txt` |
 | q_in | Nấc input = pixel − 128 | 57 (ô 7,7) | `golden_int8/input.txt` |
 | x | q_in − zp_in = pixel − 33 | 152 | Tính |
 | s_w | Thước trọng số (zp = 0) | 0,006848 | `tham_so.txt` |
 | q_w | Trọng số dạng nấc | 53 | `conv1_w.txt` |
-| s_in · s_w | Thước của tích và acc | 0,0000871585 | Tính |
+| s_in · s_w | Thước của tích (accumulator scale) và acc | 0,0000871585 | Tính |
 | q_b | Bias trên thước s_in·s_w | 4.604 | `conv1_b.txt` |
 | acc | Tổng cộng dồn | 21.313 | `01_conv1_acc.txt` |
-| s_out, zp_out | Thước output | 0,022875 / −128 | `tham_so.txt` |
+| s_out, zp_out | Thước output (output scale s_out, zero-point zp_out) | 0,022875 / −128 | `tham_so.txt` |
 | M | Tỷ lệ 2 thước | 0,00381027 | `tham_so.txt` |
 | M0, shift | M dạng số nguyên + dịch | 2.094.719.601 / 39 | `tham_so.txt` |
 | q_out | Output int8 | −47 | `02_relu1.txt` |
@@ -524,11 +574,11 @@ Trong `tham_so.txt` code đặt tên tiếng Việt: `zp_vao` = zp_in, `s_ra` = 
 <details>
 <summary>Đáp án</summary>
 
-1. 50 bias giữ int32: 4.968 × 1 + 50 × 4 = 5.168 byte so với 20.072 → 3,88×. Bias nằm trên thước s_in·s_w rất mịn → số lớn (tới 4.604).
+1. 50 bias giữ int32: 4.968 × 1 + 50 × 4 = 5.168 byte so với 20.072 → 3,88×. Bias nằm trên thước s_in·s_w (accumulator scale) rất mịn → số lớn (tới 4.604).
 2. Đệm và output ReLU là số thực 0. Có 0 trong dải thì 0 trùng đúng một nấc (= zp), không bị làm tròn lệch.
 3. (0 + 2^38) >> 39 = 0 → 0 − 128 = **−128** → số thực 0,022875 × 0 = **0**.
 4. q_in = 200 − 128 = **72**; x = 72 + 95 = **167** (= 200 − 33).
 5. Trọng số cân quanh 0 → đối xứng không phí, zp = 0 bớt phép trừ trong MAC. Activation lệch một phía (sau ReLU ≥ 0) → bất đối xứng để dùng đủ 256 nấc.
-6. M đổi acc từ thước s_in·s_w sang thước output s_out. M là số thực, chip không nhân số thực → M ≈ M0/2^shift: nhân số nguyên + dịch bit.
+6. M đổi acc từ thước s_in·s_w sang thước output (output scale s_out, zero-point zp_out) s_out. M là số thực, chip không nhân số thực → M ≈ M0/2^shift: nhân số nguyên + dịch bit.
 
 </details>

@@ -9,6 +9,8 @@ Mỗi bước có dòng **✍️ Chép** ở cuối — chỉ chép các dòng �
     acc   = q_b + Σ (q_in − zp_in) · q_w
     q_out = kẹp( ((acc · M0 + 2^(shift−1)) >> shift) + zp_out,  −128, 127 )
 
+
+> **Quy ước:** "thước" = **tham số lượng tử hoá** (*quantization parameters*) = cặp **scale** (độ dài 1 nấc) + **zero-point** (nấc của số thực 0). Lần đầu xuất hiện trong mỗi bước, thuật ngữ chuẩn ghi trong ngoặc.
 ---
 
 ## Bước 0 — Mục tiêu và bức tranh chung
@@ -118,7 +120,7 @@ Số thực (s, M) chỉ dùng trên máy tính **trước khi** lên chip. Bằ
 **2. Mấu chốt ở bước chuyển lớp.** M = s_in·s_w/s_out là số thực → **M ≈ M0 / 2^shift**
 (conv1: 2.094.719.601 / 2^39). Nhân M0 rồi dịch phải là xong.
 
-**3. Cần PTQ static.** Thước activation tính sẵn bằng calibrate, cố định lúc chạy.
+**3. Cần PTQ static.** Thước activation (activation scale + zero-point) tính sẵn bằng calibrate, cố định lúc chạy.
 
 | | Static (project) | Dynamic |
 |---|---|---|
@@ -147,6 +149,8 @@ Cùng một activation: đường float lưu 1,8441, đường int8 lưu −47, 
 - **Phải có ngoặc** quanh `(… >> 39)` trước khi cộng zp_out: trong C và Verilog, `+` ưu tiên hơn `>>`,
   viết `… >> 39 + zp_out` sẽ thành dịch `39 + zp_out` bit — sai.
 - Cả 3 lớp conv đều shift = 39, zp_out = −128; chỉ M0 khác.
+- Shift = 39 ở cả 3 lớp là **do dữ liệu**: M cả 3 lớp đều nằm trong [2^−9, 2^−8) nên shift = 31 + 8.
+  Đổi M0 sang 15 bit thì shift = 23. RTL phải đọc shift từ `tham_so.txt`, **không viết cứng `>> 39`**.
 
 **Vì sao kẹp = ReLU:** zp_out = −128 = số thực 0 ở đáy thước → acc âm sau requantize ra số < −128 → kẹp lên −128 = 0.
 Ví dụ: acc −4.247 → −16 − 128 = −144 → **−128**.
